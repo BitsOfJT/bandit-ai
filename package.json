@@ -4,14 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "bandit": "./bandit-cli.js"
+    "bandit": "./bin/bandit"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cli": "node bandit-cli.js"
+    "cli": "./bin/bandit",
+    "build:cli": "go build -C cli-go -o ../bin/bandit ."
   },
   "dependencies": {
     "lucide-react": "^1.17.0",

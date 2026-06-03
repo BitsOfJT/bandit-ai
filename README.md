@@ -114,3 +114,4 @@ Web interface sessions are stored securely in your browser's local storage (`loc
 - **Local Engine**: Ollama HTTP API (`http://127.0.0.1:11434`).
 
 *Scavenge responsibly!* 🦝💾
+# bandit-ai

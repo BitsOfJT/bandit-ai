@@ -58,15 +58,12 @@ const rl = readline.createInterface({
 
 function getAsciiArt(modelName) {
   return `
-${C_NEON_GREEN}${C_BRIGHT} __/\\\\\\_____________________________________________/\\\\\\_____________________________________________________________        
- _\/\\\\\\____________________________________________\\/\\\\\\_____________________________________________________________       
-  _\\/\\\\\\____________________________________________\\/\\\\\\___/\\\\\\_____/\\\\\\________________________________________/\\\\\\_      
-   _\\/\\\\\\_________/\\\\\\\\\\\\\\\\\\_____/\\\\/\\\\\\\\\\\\__________\\/\\\\\\__\\///___/\\\\\\\\\\\\\\\\\\\\\\____________________/\\\\\\\\\\\\\\\\\\____\\///__     
-    _\\/\\\\\\\\\\\\\\\\\\__\\////////\\\\\\___\\/\\\\\\////\\\\\\____/\\\\\\\\\\\\\\\\\\___/\\\\\\_\\////\\\\\\////____________________\\////////\\\\\\____/\\\\\\_    
-     _\\/\\\\\\////\\\\\\___/\\\\\\\\\\\\\\\\\\\\__\\/\\\\\\__\\//\\\\\\__/\\\\\\////\\\\\\__\\/\\\\\\____\\/\\\\\\__________________________/\\\\\\\\\\\\\\\\\\\\__\\/\\\\\\_   
-      _\\/\\\\\\__\\/\\\\\\__/\\\\\\/////\\\\\\__\\/\\\\\\___\\/\\\\\\_\\/\\\\\\__\\/\\\\\\__\\/\\\\\\____\\/\\\\\\_/\\\\_____________________/\\\\\\/////\\\\\\__\\/\\\\\\_  
-       _\\/\\\\\\\\\\\\\\\\\\__\\//\\\\\\\\\\\\\\\\/\\\\_\\/\\\\\\___\\/\\\\\\_\\//\\\\\\\\\\\\\\/\\\\_\\/\\\\\\____\\//\\\\\\\\\\____/\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\_\\//\\\\\\\\\\\\\\\\/\\\\_\\/\\\\\\_ 
-        _\\/////////____\\////////\\//__\\///____\\///___\\///////\\//__\\///______\\/////____\\///////////////___\\////////\\//__\\///__${C_RESET}
+${C_NEON_GREEN}${C_BRIGHT}______                 _ _ _      ___  _____ 
+| ___ \\               | (_) |    / _ \\|_   _|
+| |_/ / __ _ _ __   __| |_| |_  / /_\\ \\ | |  
+| ___ \\/ _\` | '_ \\ / _\` | | __| |  _  | | |  
+| |_/ / (_| | | | | (_| | | |_  | | | |_| |_ 
+\\____/ \\__,_|_| |_|\\__,_|_|\\__| \\_| |_/\\___/ ${C_RESET}
 
 ${C_GRAY}.                                                    .${C_RESET}
                                                        
@@ -271,7 +268,10 @@ function colorizeMarkdown(text) {
 
 async function verifyOllama() {
   try {
-    const res = await fetch(`${OLLAMA_HOST}/api/tags`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`${OLLAMA_HOST}/api/tags`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!res.ok) throw new Error();
     const data = await res.json();
     const models = data.models || [];
@@ -548,9 +548,11 @@ async function startCLI() {
       console.log(`${C_GRAY}Defaulting to installed model: ${C_YELLOW}${currentModel}${C_RESET}\n`);
       saveSession();
     } else {
+      const fallbackModel = availableModels[0];
       console.log(`${C_YELLOW}WARNING:${C_RESET} Recommended model '${currentModel}' not found in Ollama.`);
-      console.log(`Available models: ${C_GRAY}${availableModels.join(', ')}${C_RESET}`);
-      console.log(`You can run ${C_GREEN}/pull gemma4:e2b${C_RESET} to download the recommended model.\n`);
+      console.log(`${C_GRAY}Defaulting to installed model: ${C_YELLOW}${fallbackModel}${C_RESET}\n`);
+      currentModel = fallbackModel;
+      saveSession();
     }
   }
 

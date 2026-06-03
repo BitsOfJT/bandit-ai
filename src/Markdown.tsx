@@ -163,7 +163,7 @@ const TableBlock: React.FC<{ tableRaw: string }> = ({ tableRaw }) => {
   };
 
   const headerCells = parseRow(lines[0]);
-  let rows: string[][] = [];
+  const rows: string[][] = [];
 
   // Start checking other lines. Skip line 1 if it is a separator (like |---|---|)
   const isSeparator = (line: string) => {
@@ -329,7 +329,7 @@ const InlineText: React.FC<{ text: string }> = ({ text }) => {
 
     if (firstTokenIdx === -1) {
       // No more tokens
-      parts.push(<span key={keyIdx++}>{remaining}</span>);
+      parts.push(<span key={keyIdx}>{remaining}</span>);
       break;
     }
 

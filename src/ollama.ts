@@ -158,11 +158,12 @@ export async function chatStream(
         onDone(accumulatedText);
         active = false;
       }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error) {
+      const err = error as Error;
+      if (err.name === 'AbortError') {
         console.log('Stream request aborted.');
       } else {
-        onError(error);
+        onError(err);
       }
       active = false;
     }
@@ -269,11 +270,12 @@ export async function pullModelStream(
         onDone();
         active = false;
       }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error) {
+      const err = error as Error;
+      if (err.name === 'AbortError') {
         console.log('Pull request aborted.');
       } else {
-        onError(error);
+        onError(err);
       }
       active = false;
     }

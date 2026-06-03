@@ -123,6 +123,21 @@ export default function App() {
     };
   }, []);
 
+  // Sync active session changes back to the sessions array and localStorage
+  const updateCurrentSession = useCallback((updates: Partial<ChatSession>) => {
+    if (!currentSessionId) return;
+    setChatSessions(prev => {
+      const next = prev.map(s => {
+        if (s.id === currentSessionId) {
+          return { ...s, ...updates };
+        }
+        return s;
+      });
+      localStorage.setItem('bandit_chat_sessions', JSON.stringify(next));
+      return next;
+    });
+  }, [currentSessionId, setChatSessions]);
+
   // Ping Ollama and fetch models
   const refreshOllama = useCallback(async () => {
     setIsCheckingConn(true);
@@ -133,22 +148,26 @@ export default function App() {
     if (connected) {
       const availableModels = await fetchModels();
       setModels(availableModels);
-      if (availableModels.length > 0 && !selectedModel) {
-        // Prefer gemma4:e2b if available, else gemma4:e4b, else first model
-        const gemma4e2b = availableModels.find(m => m.name === 'gemma4:e2b');
-        const gemma4e4b = availableModels.find(m => m.name === 'gemma4:e4b');
-        if (gemma4e2b) {
-          setSelectedModel(gemma4e2b.name);
-        } else if (gemma4e4b) {
-          setSelectedModel(gemma4e4b.name);
-        } else {
-          setSelectedModel(availableModels[0].name);
+      if (availableModels.length > 0) {
+        const modelExists = availableModels.some(m => m.name === selectedModel);
+        if (!modelExists || !selectedModel) {
+          // Prefer gemma4:e2b if available, else gemma4:e4b, else first model
+          const gemma4e2b = availableModels.find(m => m.name === 'gemma4:e2b');
+          const gemma4e4b = availableModels.find(m => m.name === 'gemma4:e4b');
+          let defaultModel = availableModels[0].name;
+          if (gemma4e2b) {
+            defaultModel = gemma4e2b.name;
+          } else if (gemma4e4b) {
+            defaultModel = gemma4e4b.name;
+          }
+          setSelectedModel(defaultModel);
+          updateCurrentSession({ model: defaultModel });
         }
       }
     } else {
       setModels([]);
     }
-  }, [selectedModel]);
+  }, [selectedModel, updateCurrentSession]);
 
   // --- Pull/Download Model API Handler ---
   const handleStartPull = useCallback(async () => {
@@ -185,9 +204,9 @@ export default function App() {
     );
 
     abortPullRef.current = abort;
-  }, [pullModelName, refreshOllama]);
+  }, [pullModelName, refreshOllama, setIsPulling, setPullProgress, setPullError, setShowPullModal, setPullModelName]);
 
-  const handleCancelPull = useCallback(() => {
+  const handleCancelPull = () => {
     if (abortPullRef.current) {
       abortPullRef.current();
       abortPullRef.current = null;
@@ -195,51 +214,10 @@ export default function App() {
     setIsPulling(false);
     setPullProgress(null);
     setPullError('Download canceled.');
-  }, []);
-
-  // Initial load
-  useEffect(() => {
-    refreshOllama();
-
-    // Load Chat Sessions from localStorage
-    const savedSessions = localStorage.getItem('bandit_chat_sessions');
-    if (savedSessions) {
-      try {
-        const parsed = JSON.parse(savedSessions) as ChatSession[];
-        if (parsed.length > 0) {
-          setChatSessions(parsed);
-          // Sort by creation time desc
-          const sorted = [...parsed].sort((a, b) => b.createdAt - a.createdAt);
-          setCurrentSessionId(sorted[0].id);
-          // Apply state parameters from current session
-          applySessionParams(sorted[0]);
-          return;
-        }
-      } catch (e) {
-        console.error('Failed to parse saved chat sessions:', e);
-      }
-    }
-
-    // Initialize with a default chat session if none exists
-    const defaultId = `chat-${Date.now()}`;
-    const defaultSession: ChatSession = {
-      id: defaultId,
-      title: 'New Scavenge Session',
-      messages: [],
-      systemPrompt: PERSONALITY_PRESETS.hacker.prompt,
-      model: 'gemma4:e2b',
-      temperature: 0.7,
-      topP: 0.9,
-      numCtx: 2048,
-      createdAt: Date.now()
-    };
-    setChatSessions([defaultSession]);
-    setCurrentSessionId(defaultId);
-    localStorage.setItem('bandit_chat_sessions', JSON.stringify([defaultSession]));
-  }, [refreshOllama]);
+  };
 
   // Helper to load session configurations into UI controls
-  const applySessionParams = (session: ChatSession) => {
+  const applySessionParams = useCallback((session: ChatSession) => {
     setTemperature(session.temperature ?? 0.7);
     setTopP(session.topP ?? 0.9);
     setNumCtx(session.numCtx ?? 2048);
@@ -262,32 +240,62 @@ export default function App() {
     if (session.model) {
       setSelectedModel(session.model);
     }
-  };
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      refreshOllama();
+
+      // Load Chat Sessions from localStorage
+      const savedSessions = localStorage.getItem('bandit_chat_sessions');
+      if (savedSessions) {
+        try {
+          const parsed = JSON.parse(savedSessions) as ChatSession[];
+          if (parsed.length > 0) {
+            setChatSessions(parsed);
+            // Sort by creation time desc
+            const sorted = [...parsed].sort((a, b) => b.createdAt - a.createdAt);
+            setCurrentSessionId(sorted[0].id);
+            // Apply state parameters from current session
+            applySessionParams(sorted[0]);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to parse saved chat sessions:', e);
+        }
+      }
+
+      // Initialize with a default chat session if none exists
+      const defaultId = `chat-${Date.now()}`;
+      const defaultSession: ChatSession = {
+        id: defaultId,
+        title: 'New Scavenge Session',
+        messages: [],
+        systemPrompt: PERSONALITY_PRESETS.hacker.prompt,
+        model: 'gemma4:e2b',
+        temperature: 0.7,
+        topP: 0.9,
+        numCtx: 2048,
+        createdAt: Date.now()
+      };
+      setChatSessions([defaultSession]);
+      setCurrentSessionId(defaultId);
+      localStorage.setItem('bandit_chat_sessions', JSON.stringify([defaultSession]));
+    });
+  }, [refreshOllama, applySessionParams]);
 
   // Find current session object
   const currentSession = chatSessions.find(s => s.id === currentSessionId);
 
-  // Sync active session changes back to the sessions array and localStorage
-  const updateCurrentSession = useCallback((updates: Partial<ChatSession>) => {
-    if (!currentSessionId) return;
-    setChatSessions(prev => {
-      const next = prev.map(s => {
-        if (s.id === currentSessionId) {
-          return { ...s, ...updates };
-        }
-        return s;
-      });
-      localStorage.setItem('bandit_chat_sessions', JSON.stringify(next));
-      return next;
-    });
-  }, [currentSessionId]);
+
 
   // Handle active session switch
   const handleSelectSession = (id: string) => {
     // If generating, abort stream
     if (isGenerating && abortStreamRef.current) {
       abortStreamRef.current();
-      isGenerating && setIsGenerating(false);
+      setIsGenerating(false);
     }
     setCurrentSessionId(id);
     const session = chatSessions.find(s => s.id === id);
@@ -470,9 +478,11 @@ export default function App() {
     // Prepare placeholder assistant message
     const assistantMsgIndex = updatedMessages.length;
     let accumulatedContent = '';
+    let lastUpdate = 0;
+    let pendingTokenUpdate = false;
+    let updateTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const handleToken = (token: string) => {
-      accumulatedContent += token;
+    const flushUpdate = () => {
       setChatSessions(prev => {
         const next = prev.map(s => {
           if (s.id === currentSessionId) {
@@ -484,9 +494,32 @@ export default function App() {
         });
         return next;
       });
+      lastUpdate = Date.now();
+      pendingTokenUpdate = false;
+    };
+
+    const handleToken = (token: string) => {
+      accumulatedContent += token;
+      const now = Date.now();
+      if (now - lastUpdate > 80) { // Limit to at most once every 80ms (roughly 12 FPS)
+        if (updateTimeout) {
+          clearTimeout(updateTimeout);
+          updateTimeout = null;
+        }
+        flushUpdate();
+      } else if (!pendingTokenUpdate) {
+        pendingTokenUpdate = true;
+        updateTimeout = setTimeout(() => {
+          flushUpdate();
+        }, 80);
+      }
     };
 
     const handleDone = (fullText: string) => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+        updateTimeout = null;
+      }
       setIsGenerating(false);
       setChatSessions(prev => {
         const next = prev.map(s => {
@@ -508,6 +541,10 @@ export default function App() {
     };
 
     const handleError = (error: Error) => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+        updateTimeout = null;
+      }
       console.error(error);
       setIsGenerating(false);
       setChatSessions(prev => {
@@ -579,17 +616,32 @@ export default function App() {
     updateCurrentSession({ messages: [] });
   };
 
-  // Sync parameters to current chat session
-  useEffect(() => {
-    const systemPrompt = activePreset === 'custom' ? customPromptText : PERSONALITY_PRESETS[activePreset].prompt;
-    updateCurrentSession({
-      model: selectedModel,
-      temperature,
-      topP,
-      numCtx,
-      systemPrompt
-    });
-  }, [selectedModel, temperature, topP, numCtx, activePreset, customPromptText, updateCurrentSession]);
+  // Update handlers to sync changes directly to current session state and localStorage
+  const handleModelChange = (model: string) => {
+    setSelectedModel(model);
+    updateCurrentSession({ model });
+  };
+
+  const handleTemperatureChange = (temp: number) => {
+    setTemperature(temp);
+    updateCurrentSession({ temperature: temp });
+  };
+
+  const handleNumCtxChange = (ctx: number) => {
+    setNumCtx(ctx);
+    updateCurrentSession({ numCtx: ctx });
+  };
+
+  const handlePresetChange = (preset: keyof typeof PERSONALITY_PRESETS) => {
+    setActivePreset(preset);
+    const systemPrompt = preset === 'custom' ? customPromptText : PERSONALITY_PRESETS[preset].prompt;
+    updateCurrentSession({ systemPrompt });
+  };
+
+  const handleCustomPromptTextChange = (text: string) => {
+    setCustomPromptText(text);
+    updateCurrentSession({ systemPrompt: text });
+  };
 
   // Handle Textarea Enter Key Submission
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -765,7 +817,7 @@ export default function App() {
                 <div className="flex gap-1.5 items-center">
                   <select
                     value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
+                    onChange={(e) => handleModelChange(e.target.value)}
                     className="flex-1 min-w-0 custom-select py-1.5 text-xs"
                     disabled={!isConnected}
                   >
@@ -803,7 +855,7 @@ export default function App() {
                   {(Object.keys(PERSONALITY_PRESETS) as Array<keyof typeof PERSONALITY_PRESETS>).map((key) => (
                     <button
                       key={key}
-                      onClick={() => setActivePreset(key)}
+                      onClick={() => handlePresetChange(key)}
                       className={`text-left p-2 rounded text-xs border transition-all ${
                         activePreset === key
                           ? 'bg-[#9d4edd]/15 border-[#9d4edd]/50 text-purple-200'
@@ -825,7 +877,7 @@ export default function App() {
                   </label>
                   <textarea
                     value={customPromptText}
-                    onChange={(e) => setCustomPromptText(e.target.value)}
+                    onChange={(e) => handleCustomPromptTextChange(e.target.value)}
                     placeholder="Enter custom prompt instructions for Bandit..."
                     className="w-full custom-input system-instructions-textarea text-xs"
                   />
@@ -844,7 +896,7 @@ export default function App() {
                   max="1.5"
                   step="0.05"
                   value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  onChange={(e) => handleTemperatureChange(parseFloat(e.target.value))}
                   className="w-full accent-[#00f2fe] bg-black/40 h-1 rounded"
                 />
 
@@ -858,7 +910,7 @@ export default function App() {
                   max="8192"
                   step="512"
                   value={numCtx}
-                  onChange={(e) => setNumCtx(parseInt(e.target.value))}
+                  onChange={(e) => handleNumCtxChange(parseInt(e.target.value))}
                   className="w-full accent-[#9d4edd] bg-black/40 h-1 rounded"
                 />
               </div>
@@ -918,12 +970,16 @@ export default function App() {
               <div className="flex flex-col items-center space-y-6">
                 <div className="relative inline-block">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#00f2fe] to-[#9d4edd] opacity-25 blur-xl animate-pulse" />
-                  <img
-                    src="/bandit_avatar.png"
-                    className="relative welcome-avatar animate-bounce-slow"
+                  <div
+                    className="relative welcome-avatar-box animate-bounce-slow"
                     style={{ animationDuration: '6s' }}
-                    alt="Bandit Logo Large"
-                  />
+                  >
+                    <img
+                      src="/bandit_avatar.png"
+                      className="welcome-avatar-img"
+                      alt="Bandit Logo Large"
+                    />
+                  </div>
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight text-white m-0">
@@ -1059,7 +1115,7 @@ export default function App() {
                 disabled={isGenerating}
                 rows={1}
                 className="chat-input"
-                style={{ height: 'auto', fieldSizing: 'content' } as any}
+                style={{ height: 'auto', ...({ fieldSizing: 'content' } as unknown as React.CSSProperties) }}
               />
 
               <div className="flex items-center gap-1.5 shrink-0 px-1 py-1">

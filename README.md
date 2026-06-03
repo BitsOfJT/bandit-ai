@@ -68,8 +68,18 @@ npm link
 bandit
 ```
 
-### Option B: The Web UI Interface 🌐
-If you prefer a visual interface with neon glows, glassmorphism, and instant response adjustments:
+### Option B: Standalone Desktop App (macOS DMG) 🖥️
+The easiest way to run Bandit AI on macOS is to download the standalone desktop application:
+
+1. Download the latest `Bandit_AI_v1.1.dmg` setup package from the **Releases** page.
+2. Double-click the `.dmg` file to mount it.
+3. Drag **Bandit AI** directly into your **Applications** folder.
+4. Launch **Bandit AI** from your Applications or Launchpad! *(It will automatically handle running the local Vite server and connecting to Ollama in the background)*.
+
+---
+
+### Option C: Manual Web UI Build 🌐
+If you prefer to build the interface manually or run it in a browser:
 
 ```bash
 # Start the local Vite server

@@ -4,14 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "bandit": "./bandit-cli.js"
+    "bandit": "./bin/bandit"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cli": "node bandit-cli.js"
+    "cli": "./bin/bandit",
+    "build:cli": "go build -C cli-go -o ../bin/bandit .",
+    "build:cli:windows": "GOOS=windows GOARCH=amd64 go build -C cli-go -o ../bin/bandit.exe .",
+    "build:cli:linux": "GOOS=linux GOARCH=amd64 go build -C cli-go -o ../bin/bandit-linux .",
+    "build:cli:all": "npm run build:cli && npm run build:cli:windows && npm run build:cli:linux",
+    "build:wasm": "GOOS=js GOARCH=wasm go build -C cli-go/wasm -o ../../public/markdown.wasm ."
   },
   "dependencies": {
     "lucide-react": "^1.17.0",

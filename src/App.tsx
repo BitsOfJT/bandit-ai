@@ -123,6 +123,35 @@ export default function App() {
     };
   }, []);
 
+  // Load Go WebAssembly Markdown Parser
+  useEffect(() => {
+    interface GoInstance {
+      importObject: WebAssembly.Imports;
+      run(instance: WebAssembly.Instance): void;
+    }
+    type GoConstructor = new () => GoInstance;
+
+    const loadWasm = async () => {
+      try {
+        const win = window as unknown as { Go?: GoConstructor };
+        if (typeof win.Go !== 'undefined') {
+          const go = new win.Go();
+          const result = await WebAssembly.instantiateStreaming(
+            fetch('/markdown.wasm'),
+            go.importObject
+          );
+          go.run(result.instance);
+          console.log('✅ Go WASM Markdown block parser successfully initialized.');
+        } else {
+          console.warn('⚠️ Go WASM loader (wasm_exec.js) not found on window.');
+        }
+      } catch (err) {
+        console.error('❌ Failed to initialize Go WASM parser:', err);
+      }
+    };
+    Promise.resolve().then(loadWasm);
+  }, []);
+
   // Sync active session changes back to the sessions array and localStorage
   const updateCurrentSession = useCallback((updates: Partial<ChatSession>) => {
     if (!currentSessionId) return;
@@ -692,7 +721,7 @@ export default function App() {
             <div>
               <h1 className="text-base font-bold tracking-wider text-slate-100 flex items-center gap-1.5 m-0">
                 BANDIT AI
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#9d4edd]/35 text-[#d8b4fe] border border-[#9d4edd]/30">v1.0</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#9d4edd]/35 text-[#d8b4fe] border border-[#9d4edd]/30">v1.1</span>
               </h1>
               <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
                 {isCheckingConn ? (

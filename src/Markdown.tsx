@@ -9,6 +9,17 @@ export const Markdown: React.FC<MarkdownProps> = ({ content }) => {
   const parts = useMemo(() => {
     if (!content) return [];
 
+    // Attempt to use Go WebAssembly Markdown block parser for maximum performance
+    const win = window as unknown as { parseMarkdownBlocks?: (content: string) => string };
+    if (typeof win.parseMarkdownBlocks === 'function') {
+      try {
+        const jsonStr = win.parseMarkdownBlocks(content);
+        return JSON.parse(jsonStr) as { type: 'code' | 'table' | 'text'; raw: string; lang?: string }[];
+      } catch (err) {
+        console.error('Go WASM Markdown parsing failed, falling back to JS:', err);
+      }
+    }
+
     const blocks: { type: 'code' | 'table' | 'text'; raw: string; lang?: string }[] = [];
     const lines = content.split('\n');
     let currentBlock: string[] = [];

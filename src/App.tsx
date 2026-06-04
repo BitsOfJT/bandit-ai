@@ -502,7 +502,8 @@ export default function App() {
     if (finalSystemPrompt) {
       queryMessages.push({ role: 'system', content: finalSystemPrompt });
     }
-    queryMessages.push(...updatedMessages);
+    const apiMessages = updatedMessages.filter(m => m.role !== 'system');
+    queryMessages.push(...apiMessages);
 
     // Prepare placeholder assistant message
     const assistantMsgIndex = updatedMessages.length;
@@ -618,21 +619,21 @@ export default function App() {
   const handleRegenerate = () => {
     if (!currentSession || currentSession.messages.length === 0 || isGenerating) return;
 
-    // Find last user message
+    // Find last user message and remove trailing messages
     const msgs = [...currentSession.messages];
-    const lastMsg = msgs[msgs.length - 1];
-
-    if (lastMsg.role === 'assistant') {
-      // Remove it
+    while (msgs.length > 0 && msgs[msgs.length - 1].role !== 'user') {
       msgs.pop();
     }
+    
+    if (msgs.length === 0) return;
 
-    // Set messages to exclude last assistant response
+    // Set messages to exclude trailing responses
     updateCurrentSession({ messages: msgs });
     
-    // Re-send messages
+    // Re-send last user message
+    const lastUserPrompt = msgs[msgs.length - 1].content;
     setTimeout(() => {
-      handleSendMessage(msgs[msgs.length - 1].content);
+      handleSendMessage(lastUserPrompt);
     }, 100);
   };
 
@@ -664,7 +665,21 @@ export default function App() {
   const handlePresetChange = (preset: keyof typeof PERSONALITY_PRESETS) => {
     setActivePreset(preset);
     const systemPrompt = preset === 'custom' ? customPromptText : PERSONALITY_PRESETS[preset].prompt;
-    updateCurrentSession({ systemPrompt });
+    
+    // Add system notification message in the chat thread for immediate feedback
+    if (currentSession) {
+      const systemNotice: Message = {
+        role: 'system',
+        content: `PERSONA LOADED -> ${PERSONALITY_PRESETS[preset].name}`
+      };
+      const updatedMessages = [...currentSession.messages, systemNotice];
+      updateCurrentSession({
+        systemPrompt,
+        messages: updatedMessages
+      });
+    } else {
+      updateCurrentSession({ systemPrompt });
+    }
   };
 
   const handleCustomPromptTextChange = (text: string) => {
@@ -696,7 +711,7 @@ export default function App() {
         </button>
         
         <div className="flex items-center gap-2">
-          <img src="/bandit_avatar.png" className="w-8 h-8 rounded-md border border-[#00f2fe]/40 glow-cyan" alt="Bandit" />
+          <img src="/bandit_avatar.png" className="w-8 h-8 rounded-none border border-[#00f2fe]/40 glow-cyan" alt="Bandit" />
           <span className="font-bold tracking-wide text-sm bg-gradient-to-r from-[#00f2fe] to-[#9d4edd] bg-clip-text text-transparent">BANDIT AI</span>
         </div>
 
@@ -711,17 +726,17 @@ export default function App() {
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between retro-panel-corners">
           <div className="flex items-center gap-3">
             <img
               src="/bandit_avatar.png"
-              className="w-10 h-10 rounded-lg border border-[#00f2fe]/50 shadow-[0_0_10px_rgba(0,242,254,0.25)]"
+              className="w-10 h-10 rounded-none border-2 border-[#00f2fe]/50 shadow-[3px_3px_0px_0px_var(--accent-cyan)]"
               alt="Bandit Avatar"
             />
             <div>
               <h1 className="text-base font-bold tracking-wider text-slate-100 flex items-center gap-1.5 m-0">
                 BANDIT AI
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#9d4edd]/35 text-[#d8b4fe] border border-[#9d4edd]/30">v1.1</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-none bg-[#9d4edd]/35 text-[#d8b4fe] border border-[#9d4edd]/30 font-retro-mono-sm">v1.1</span>
               </h1>
               <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
                 {isCheckingConn ? (
@@ -729,12 +744,12 @@ export default function App() {
                 ) : isConnected ? (
                   <>
                     <Wifi className="h-3 w-3 text-emerald-400 animate-pulse" />
-                    <span className="text-emerald-400/90 font-semibold">OLLAMA ONLINE</span>
+                    <span className="text-emerald-400/90 font-semibold font-retro-mono-sm">OLLAMA ONLINE</span>
                   </>
                 ) : (
                   <>
                     <WifiOff className="h-3 w-3 text-rose-500" />
-                    <span className="text-rose-500 font-semibold">OLLAMA OFFLINE</span>
+                    <span className="text-rose-500 font-semibold font-retro-mono-sm">OLLAMA OFFLINE</span>
                   </>
                 )}
               </p>
@@ -742,7 +757,7 @@ export default function App() {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-none hover:bg-white/5 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -752,7 +767,7 @@ export default function App() {
         <div className="p-3">
           <button
             onClick={handleNewSession}
-            className="w-full btn-neon-cyan flex-center py-2.5 rounded-lg text-sm"
+            className="w-full btn-neon-cyan flex-center py-2.5 text-sm"
           >
             <Plus className="h-4.5 w-4.5" />
             <span>New Chat Session</span>
@@ -766,14 +781,14 @@ export default function App() {
             <div
               key={session.id}
               onClick={() => handleSelectSession(session.id)}
-              className={`group flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all duration-150 border ${
-                session.id === currentSessionId
-                  ? 'bg-white/[0.06] border-white/10 text-white'
-                  : 'border-transparent text-slate-400 hover:bg-white/[0.03] hover:text-slate-200'
-              }`}
+              className={`group retro-session-item ${session.id === currentSessionId ? 'active' : ''}`}
             >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <MessageSquare className={`h-4 w-4 shrink-0 ${session.id === currentSessionId ? 'text-[#00f2fe]' : 'text-slate-500'}`} />
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {session.id === currentSessionId ? (
+                  <span className="text-[#00f2fe] font-mono font-bold animate-pulse text-xs shrink-0 select-none">▶</span>
+                ) : (
+                  <MessageSquare className="h-4 w-4 shrink-0 text-slate-500" />
+                )}
                 {editingChatId === session.id ? (
                   <input
                     type="text"
@@ -782,7 +797,7 @@ export default function App() {
                     onBlur={() => handleSaveRename(session.id)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(session.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-black/40 border border-[#00f2fe]/40 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none w-full font-sans"
+                    className="bg-black/40 border border-[#00f2fe]/40 rounded-none px-1.5 py-0.5 text-xs text-white focus:outline-none w-full font-sans"
                     autoFocus
                   />
                 ) : (
@@ -795,14 +810,14 @@ export default function App() {
                   <>
                     <button
                       onClick={(e) => handleStartRename(session.id, session.title, e)}
-                      className="p-1 hover:text-[#00f2fe] text-slate-500 rounded transition-colors"
+                      className="p-1 hover:text-[#00f2fe] text-slate-500 rounded-none transition-colors"
                       title="Rename Chat"
                     >
                       <Edit2 className="h-3 w-3" />
                     </button>
                     <button
                       onClick={(e) => handleDeleteSession(session.id, e)}
-                      className="p-1 hover:text-rose-400 text-slate-500 rounded transition-colors"
+                      className="p-1 hover:text-rose-400 text-slate-500 rounded-none transition-colors"
                       title="Delete Chat"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -811,7 +826,7 @@ export default function App() {
                 ) : (
                   <button
                     onClick={(e) => { e.stopPropagation(); handleSaveRename(session.id); }}
-                    className="p-1 text-emerald-400 hover:text-emerald-300 rounded"
+                    className="p-1 text-emerald-400 hover:text-emerald-300 rounded-none"
                   >
                     <Check className="h-3 w-3" />
                   </button>
@@ -885,7 +900,7 @@ export default function App() {
                     <button
                       key={key}
                       onClick={() => handlePresetChange(key)}
-                      className={`text-left p-2 rounded text-xs border transition-all ${
+                      className={`text-left p-2 rounded-none text-xs border transition-all ${
                         activePreset === key
                           ? 'bg-[#9d4edd]/15 border-[#9d4edd]/50 text-purple-200'
                           : 'bg-black/35 border-transparent text-slate-400 hover:bg-black/50 hover:text-slate-200'
@@ -916,8 +931,8 @@ export default function App() {
               {/* Parameters Accordion (Temp, TopP, Context) */}
               <div className="space-y-2.5 pt-2 border-t border-white/5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-medium">Temperature</span>
-                  <span className="text-[#00f2fe] font-mono">{temperature}</span>
+                  <span className="text-slate-400 font-medium font-retro-mono-sm">Temperature</span>
+                  <span className="text-[#00f2fe] font-retro-mono">{temperature}</span>
                 </div>
                 <input
                   type="range"
@@ -926,12 +941,12 @@ export default function App() {
                   step="0.05"
                   value={temperature}
                   onChange={(e) => handleTemperatureChange(parseFloat(e.target.value))}
-                  className="w-full accent-[#00f2fe] bg-black/40 h-1 rounded"
+                  className="w-full accent-[#00f2fe] bg-black/40 h-1 rounded-none"
                 />
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-medium">Context Window</span>
-                  <span className="text-[#9d4edd] font-mono">{numCtx}</span>
+                  <span className="text-slate-400 font-medium font-retro-mono-sm">Context Window</span>
+                  <span className="text-[#9d4edd] font-retro-mono">{numCtx}</span>
                 </div>
                 <input
                   type="range"
@@ -940,14 +955,14 @@ export default function App() {
                   step="512"
                   value={numCtx}
                   onChange={(e) => handleNumCtxChange(parseInt(e.target.value))}
-                  className="w-full accent-[#9d4edd] bg-black/40 h-1 rounded"
+                  className="w-full accent-[#9d4edd] bg-black/40 h-1 rounded-none"
                 />
               </div>
 
               {/* Refresh connection status */}
               <button
                 onClick={refreshOllama}
-                className="w-full py-1 text-[10px] text-center text-slate-500 hover:text-slate-300 font-mono uppercase transition-colors flex items-center justify-center gap-1"
+                className="w-full py-1 text-slate-500 hover:text-slate-300 font-retro-mono uppercase transition-colors flex items-center justify-center gap-1.5"
               >
                 <RefreshCw className="h-3 w-3" />
                 Reconnect Ollama
@@ -961,11 +976,11 @@ export default function App() {
       <main className="flex-1 flex flex-col h-full w-full relative z-10 pt-14 md:pt-0">
         
         {/* DESKTOP HEADER */}
-        <header className="hidden md:flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/25 backdrop-blur-md">
+        <header className="hidden md:flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/25 backdrop-blur-md retro-panel-corners">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors mr-1"
+              className="p-1.5 text-slate-400 hover:text-white rounded-none hover:bg-white/5 transition-colors mr-1"
               title="Toggle Sidebar"
             >
               <Menu className="h-5 w-5" />
@@ -974,7 +989,7 @@ export default function App() {
               <div className="text-sm font-semibold text-slate-200">
                 Chatting with <span className="text-[#00f2fe] font-mono">{currentSession?.title}</span>
               </div>
-              <div className="text-xs text-slate-400 mt-0.5 font-mono flex items-center gap-1.5">
+              <div className="text-xs text-slate-400 mt-0.5 font-retro-mono-sm flex items-center gap-1.5">
                 <Cpu className="h-3.5 w-3.5 text-[#9d4edd]" />
                 {selectedModel || 'No Model Loaded'} 
                 <span className="opacity-50">•</span> 
@@ -998,7 +1013,7 @@ export default function App() {
               
               <div className="flex flex-col items-center space-y-6">
                 <div className="relative inline-block">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#00f2fe] to-[#9d4edd] opacity-25 blur-xl animate-pulse" />
+                  <div className="absolute inset-0 rounded-none bg-gradient-to-r from-[#00f2fe] to-[#9d4edd] opacity-25 blur-xl animate-pulse" />
                   <div
                     className="relative welcome-avatar-box animate-bounce-slow"
                     style={{ animationDuration: '6s' }}
@@ -1022,7 +1037,7 @@ export default function App() {
 
               {/* Quick start bubbles OR Onboarding Walkthrough */}
               {models.length === 0 ? (
-                <div className="glass-panel p-5 text-left w-full space-y-4 border border-[#ff007f]/30 shadow-[4px_4px_0px_0px_var(--accent-magenta)] bg-[#0a0b10]/90">
+                <div className="glass-panel p-5 text-left w-full space-y-4 border border-[#ff007f]/30 shadow-[4px_4px_0px_0px_var(--accent-magenta)] bg-[#0a0b10]/90 retro-panel-corners-magenta">
                   <h3 className="text-xs font-bold text-[#ff007f] font-mono uppercase tracking-wider flex items-center gap-2 m-0">
                     <Terminal className="h-4 w-4" /> NO AI MODELS DETECTED
                   </h3>
@@ -1062,13 +1077,13 @@ export default function App() {
                     <button
                       key={i}
                       onClick={() => handleSendMessage(prompt.text)}
-                      className="p-3 text-left rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.06] hover:border-white/15 transition-all text-xs flex flex-col space-y-1 cursor-pointer group"
+                      className="retro-prompt-card group"
                     >
-                      <span className="font-bold text-[#00f2fe] flex items-center gap-1">
-                        <Terminal className="h-3 w-3 opacity-70 group-hover:scale-110 transition-transform" />
+                      <span className="font-bold text-[#00f2fe] flex items-center gap-1 font-mono">
+                        <Terminal className="h-3 w-3 opacity-70 group-hover:translate-x-0.5 transition-transform" />
                         {prompt.label}
                       </span>
-                      <span className="text-slate-400 line-clamp-2 text-[11px] leading-normal">{prompt.text}</span>
+                      <span className="text-slate-400 line-clamp-2 text-[11px] leading-normal font-sans">{prompt.text}</span>
                     </button>
                   ))}
                 </div>
@@ -1077,34 +1092,45 @@ export default function App() {
           ) : (
             /* RENDER MESSAGES */
             <>
-              {currentSession?.messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex gap-3 max-w-[85%] ${
-                    msg.role === 'user' ? 'self-end flex-row-reverse' : 'self-start'
-                  }`}
-                >
-                  {/* Avatar Icons */}
-                  <div className="flex flex-col items-center justify-start shrink-0 pt-1">
-                    {msg.role === 'user' ? (
-                      <div className="w-8 h-8 rounded bg-[#9d4edd]/20 border border-[#9d4edd]/40 flex-center text-xs font-semibold text-[#d8b4fe]">
-                        ME
+              {currentSession?.messages.map((msg, index) => {
+                if (msg.role === 'system') {
+                  return (
+                    <div key={index} className="w-full flex justify-center py-2 select-none">
+                      <div className="border border-[#fffb00]/30 bg-[#fffb00]/5 px-3.5 py-1.5 font-retro-mono-sm text-xs text-[#fffb00]/95 uppercase tracking-widest retro-panel-corners">
+                        » SYSTEM: {msg.content}
                       </div>
-                    ) : (
-                      <img
-                        src="/bandit_avatar.png"
-                        className="w-8 h-8 rounded border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)]"
-                        alt="Bandit"
-                      />
-                    )}
-                  </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    key={index}
+                    className={`flex gap-3 max-w-[85%] ${
+                      msg.role === 'user' ? 'self-end flex-row-reverse' : 'self-start'
+                    }`}
+                  >
+                    {/* Avatar Icons */}
+                    <div className="flex flex-col items-center justify-start shrink-0 pt-1">
+                      {msg.role === 'user' ? (
+                        <div className="w-8 h-8 rounded-none bg-[#9d4edd]/20 border-2 border-[#9d4edd]/50 flex-center text-xs font-semibold text-[#d8b4fe] shadow-[2px_2px_0px_0px_var(--accent-purple)]">
+                          ME
+                        </div>
+                      ) : (
+                        <img
+                          src="/bandit_avatar.png"
+                          className="w-8 h-8 rounded-none border-2 border-[#00f2fe]/50 shadow-[2px_2px_0px_0px_var(--accent-cyan)]"
+                          alt="Bandit"
+                        />
+                      )}
+                    </div>
 
-                  {/* Bubble Content */}
-                  <div className={`chat-bubble ${msg.role === 'user' ? 'user' : 'assistant'}`}>
-                    <Markdown content={msg.content} />
+                    {/* Bubble Content */}
+                    <div className={`chat-bubble ${msg.role === 'user' ? 'user' : 'assistant'}`}>
+                      <Markdown content={msg.content} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Thinking / Streaming Indicator */}
               {isGenerating && (
@@ -1112,14 +1138,14 @@ export default function App() {
                   <div className="flex flex-col items-center justify-start shrink-0 pt-1">
                     <img
                       src="/bandit_avatar.png"
-                      className="w-8 h-8 rounded border border-[#00f2fe]/40 shadow-[0_0_8px_rgba(0,242,254,0.15)] animate-pulse"
+                      className="w-8 h-8 rounded-none border-2 border-[#00f2fe]/50 shadow-[2px_2px_0px_0px_var(--accent-cyan)] animate-pulse"
                       alt="Bandit"
                     />
                   </div>
                   <div className="chat-bubble assistant flex items-center gap-1.5 py-3">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                    <span className="w-2.5 h-2.5 bg-[#00f2fe] animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2.5 h-2.5 bg-[#00f2fe] animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-2.5 h-2.5 bg-[#00f2fe] animate-bounce" style={{ animationDelay: '300ms' }}></span>
                     <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest ml-2 animate-pulse">Scavenging data...</span>
                   </div>
                 </div>
@@ -1134,7 +1160,7 @@ export default function App() {
         {/* BOTTOM INPUT CONTAINER */}
         <footer className="p-4 md:p-6 bg-gradient-to-t from-[#06070a] to-[#06070a]/80 border-t border-white/10">
           <div className="max-w-3xl mx-auto relative">
-            <div className="chat-input-container">
+            <div className="chat-input-container retro-panel-corners">
               <textarea
                 ref={inputRef}
                 value={inputText}
@@ -1151,16 +1177,16 @@ export default function App() {
                 {isGenerating ? (
                   <button
                     onClick={handleStopGenerating}
-                    className="p-2.5 bg-rose-600/25 hover:bg-rose-600/40 text-rose-400 border border-rose-500/20 rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+                    className="p-2.5 bg-rose-600/25 hover:bg-rose-600/40 text-rose-400 border border-rose-500/20 rounded-none transition-colors flex items-center justify-center cursor-pointer"
                     title="Stop Generating"
                   >
-                    <div className="w-3 h-3 bg-rose-400 rounded-sm"></div>
+                    <div className="w-3 h-3 bg-rose-400 rounded-none"></div>
                   </button>
                 ) : (
                   <button
                     onClick={() => handleSendMessage()}
                     disabled={!inputText.trim()}
-                    className={`p-2.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-none flex items-center justify-center transition-all cursor-pointer ${
                       inputText.trim()
                         ? 'bg-[#00f2fe]/10 text-[#00f2fe] border border-[#00f2fe]/40 hover:bg-[#00f2fe]/20 shadow-[0_0_12px_rgba(0,242,254,0.15)]'
                         : 'text-slate-600 bg-white/5 border border-transparent cursor-not-allowed'
@@ -1195,7 +1221,7 @@ export default function App() {
                   </button>
                 </div>
                 <div className="hidden sm:inline-block">
-                  Press <kbd className="bg-white/5 border border-white/10 px-1 py-0.5 rounded text-[9px]">Enter</kbd> to send, <kbd className="bg-white/5 border border-white/10 px-1 py-0.5 rounded text-[9px]">Shift+Enter</kbd> for new line
+                  Press <kbd className="bg-white/5 border border-white/10 px-1 py-0.5 rounded-none text-[9px]">Enter</kbd> to send, <kbd className="bg-white/5 border border-white/10 px-1 py-0.5 rounded-none text-[9px]">Shift+Enter</kbd> for new line
                 </div>
               </div>
             )}

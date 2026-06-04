@@ -57,7 +57,8 @@
     background-size: 100% 4px;
     pointer-events: none;
     z-index: 9999;
-    opacity: 0.35;
+    opacity: 0.32;
+    animation: scanline-drift 12s linear infinite, crt-flicker 0.15s infinite;
   }
 
   /* Image pixelation rendering */
@@ -227,12 +228,104 @@
     box-shadow: 4px 4px 0px 0px var(--accent-magenta);
   }
 
+  .chat-bubble.user::before {
+    content: "";
+    position: absolute;
+    right: -8px;
+    top: 12px;
+    width: 8px;
+    height: 8px;
+    background: #0e0a14;
+    border-right: 2px solid var(--accent-magenta);
+    border-top: 2px solid var(--accent-magenta);
+    box-shadow: 2px -2px 0 0 rgba(0, 0, 0, 0.4);
+    transform: rotate(45deg);
+    z-index: 2;
+  }
+
   .chat-bubble.assistant {
     background: #060b10;
     border: 2px solid var(--accent-cyan);
     color: var(--text-primary);
     align-self: flex-start;
     box-shadow: 4px 4px 0px 0px var(--accent-cyan);
+  }
+
+  .chat-bubble.assistant::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 12px;
+    width: 8px;
+    height: 8px;
+    background: #060b10;
+    border-left: 2px solid var(--accent-cyan);
+    border-bottom: 2px solid var(--accent-cyan);
+    box-shadow: -2px 2px 0 0 rgba(0, 0, 0, 0.4);
+    transform: rotate(45deg);
+    z-index: 2;
+  }
+
+  /* Neon Corner Panel Ornaments */
+  .retro-panel-corners {
+    position: relative;
+  }
+
+  .retro-panel-corners::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid var(--accent-cyan);
+    border-left: 2px solid var(--accent-cyan);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .retro-panel-corners::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-bottom: 2px solid var(--accent-cyan);
+    border-right: 2px solid var(--accent-cyan);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Variant for Magenta Corners */
+  .retro-panel-corners-magenta {
+    position: relative;
+  }
+
+  .retro-panel-corners-magenta::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid var(--accent-magenta);
+    border-left: 2px solid var(--accent-magenta);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .retro-panel-corners-magenta::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-bottom: 2px solid var(--accent-magenta);
+    border-right: 2px solid var(--accent-magenta);
+    pointer-events: none;
+    z-index: 10;
   }
 
   /* Form Elements (Blocky) */
@@ -374,7 +467,7 @@
     align-items: flex-end;
     padding: 0.5rem;
     position: relative;
-    border-radius: 12px;
+    border-radius: 0;
   }
 
   .chat-input-container:has(.chat-input:focus) {
@@ -462,9 +555,9 @@
   .welcome-avatar-box {
     width: 14rem;
     height: 14rem;
-    border-radius: 20px;
-    border: 3px solid var(--accent-cyan);
-    box-shadow: 0 0 35px rgba(0, 242, 254, 0.35);
+    border-radius: 0;
+    border: 4px double var(--accent-cyan);
+    box-shadow: var(--shadow-flat-cyan);
     background-color: #07080c;
     overflow: hidden;
     display: flex;
@@ -686,6 +779,36 @@
     animation: bounce-slow 6s infinite;
   }
 
+  @keyframes scanline-drift {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 0 80px;
+    }
+  }
+
+  @keyframes crt-flicker {
+    0% { opacity: 0.31; }
+    50% { opacity: 0.33; }
+    100% { opacity: 0.31; }
+  }
+
+  /* VT323 Typography utilities */
+  .font-retro-mono {
+    font-family: 'VT323', monospace;
+    font-size: 1.35rem;
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+  }
+
+  .font-retro-mono-sm {
+    font-family: 'VT323', monospace;
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+  }
+
   /* Custom settings panel and textarea sizing */
   .settings-panel-content {
     max-height: 55vh;
@@ -696,6 +819,55 @@
     height: 12rem;
     min-height: 6rem;
     resize: vertical;
+  }
+
+  /* Retro 8-bit Prompt Cards */
+  .retro-prompt-card {
+    padding: 0.8rem;
+    text-align: left;
+    background: var(--bg-surface);
+    border: 2px dashed var(--border-subtle);
+    transition: var(--transition-blocky);
+    font-size: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    cursor: pointer;
+    transform: translate(0, 0);
+  }
+
+  .retro-prompt-card:hover {
+    border-color: var(--accent-magenta);
+    border-style: solid;
+    box-shadow: var(--shadow-flat-magenta);
+    transform: translate(-3px, -3px);
+  }
+
+  /* Sidebar Session Items */
+  .retro-session-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: var(--transition-blocky);
+    color: var(--text-secondary);
+    background: transparent;
+  }
+
+  .retro-session-item:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border-color: var(--border-subtle);
+  }
+
+  .retro-session-item.active {
+    color: #fff;
+    background: rgba(0, 242, 254, 0.05);
+    border-color: var(--accent-cyan);
+    box-shadow: 3px 3px 0px 0px var(--accent-cyan);
+    transform: translate(-2px, -2px);
   }
 }
 

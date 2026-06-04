@@ -312,7 +312,8 @@ export default function App() {
       setCurrentSessionId(defaultId);
       localStorage.setItem('bandit_chat_sessions', JSON.stringify([defaultSession]));
     });
-  }, [refreshOllama, applySessionParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Find current session object
   const currentSession = chatSessions.find(s => s.id === currentSessionId);

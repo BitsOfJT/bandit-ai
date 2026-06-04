@@ -2,6 +2,9 @@
 
 > *"One person's digital garbage is another raccoon's prized codebase."*
 
+> [!NOTE]
+> **Development Status:** Bandit AI is currently in **very early development**. Expect occasional bugs, experimental terminal commands, and rough edges as we chitter along and scavenge for better code scraps!
+
 Welcome to **Bandit AI**, a retro cyberpunk-themed local chatbot with a split personality. Bandit exists in two environments: a neon-colored **Interactive CLI** and a retro-futuristic **React Web Interface**. He runs entirely on your local machine using **Ollama**, ensuring your scavenged chats never leave your hard drive.
 
 ---
@@ -71,7 +74,7 @@ bandit
 ### Option B: Standalone Desktop App (macOS DMG) 🖥️
 The easiest way to run Bandit AI on macOS is to download the standalone desktop application:
 
-1. Download the latest `Bandit_AI_v1.1.dmg` setup package from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page.
+1. Download the latest `Bandit_AI_v0.1.1.dmg` setup package from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page.
 2. Double-click the `.dmg` file to mount it.
 3. Drag **Bandit AI** directly into your **Applications** folder.
 4. Launch **Bandit AI** from your Applications or Launchpad! *(It will automatically handle running the local Vite server and connecting to Ollama in the background)*.

@@ -32,9 +32,9 @@ Go to [Ollama.com](https://ollama.com) to download and install the Ollama client
 Make sure the Ollama application is open and running in the background. You can verify it is active by checking your menu bar or system tray.
 
 ### 3. Pull a Model
-Bandit defaults to the `gemma4:e2b` or `gemma:2b` models, but he works with any model you have installed. You can download a model through your terminal:
+Bandit defaults to whatever model you have installed. You can download a model through your terminal:
 ```bash
-ollama pull gemma:2b
+ollama pull *insert model name here*
 ```
 *(Alternatively, you can pull models directly inside the Bandit CLI using the `/pull <model_name>` command).*
 

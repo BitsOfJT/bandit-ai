@@ -14,12 +14,13 @@ the tap is referenced as `BitsOfJT/bandit`).
    cp /path/to/bandit-ai/packaging/homebrew/bandit.rb Formula/bandit.rb
    git add Formula/bandit.rb && git commit -m "bandit 0.2.0" && git push
    ```
-3. Users can now install:
+3. Users can now install with the **fully-qualified** name:
    ```bash
    brew install BitsOfJT/bandit/bandit
-   # or
-   brew tap BitsOfJT/bandit && brew install bandit
    ```
+   > Do not advertise the bare `brew install bandit` — that name belongs to an
+   > unrelated formula in Homebrew core (a Python security scanner). Always use
+   > `BitsOfJT/bandit/bandit`.
 
 ## On every new release
 

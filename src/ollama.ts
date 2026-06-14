@@ -12,11 +12,32 @@ export interface ChatOptions {
 export interface OllamaModel {
   name: string;
   size: number;
+  capabilities?: string[];
   details: {
     parameter_size: string;
     quantization_level: string;
     family: string;
   };
+}
+
+export interface CloudModel {
+  name: string;
+  capabilities: string[];
+}
+
+/**
+ * Extracts the most useful error message from a non-ok Ollama response.
+ * Ollama returns JSON like {"error":"model 'x' not found, try pulling it first"},
+ * which is far more actionable than a bare status code.
+ */
+async function ollamaErrorMessage(response: Response): Promise<string> {
+  try {
+    const data = await response.clone().json();
+    if (data?.error) return data.error;
+  } catch {
+    /* body wasn't JSON */
+  }
+  return `${response.statusText} (${response.status})`;
 }
 
 /**
@@ -94,7 +115,7 @@ export async function chatStream(
       });
 
       if (!response.ok) {
-        throw new Error(`Ollama Chat Error: ${response.statusText} (${response.status})`);
+        throw new Error(await ollamaErrorMessage(response));
       }
 
       if (!response.body) {
@@ -215,7 +236,7 @@ export async function pullModelStream(
       });
 
       if (!response.ok) {
-        throw new Error(`Ollama Pull Error: ${response.statusText} (${response.status})`);
+        throw new Error(await ollamaErrorMessage(response));
       }
 
       if (!response.body) {
@@ -284,5 +305,64 @@ export async function pullModelStream(
   })();
 
   return abort;
+}
+
+/**
+ * Parses the Ollama cloud catalog HTML (from /search?c=cloud). Each model is an
+ * element carrying the `x-test-model` attribute, with the name in
+ * `x-test-search-response-title` and capability badges in `x-test-capability`.
+ * Exported for unit testing against a saved fixture.
+ */
+export function parseCloudCatalog(html: string): CloudModel[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const models: CloudModel[] = [];
+  doc.querySelectorAll('[x-test-model]').forEach((li) => {
+    const name = li.querySelector('[x-test-search-response-title]')?.textContent?.trim();
+    if (!name) return;
+    const capabilities = Array.from(li.querySelectorAll('[x-test-capability]'))
+      .map((c) => c.textContent?.trim() || '')
+      .filter(Boolean);
+    models.push({ name, capabilities });
+  });
+  return models;
+}
+
+/**
+ * Extracts runnable cloud tags (e.g. gpt-oss:120b-cloud) from a model's
+ * /library/<name>/tags page HTML.
+ */
+export function parseCloudTags(html: string, name: string): string[] {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`/library/${escaped}:([a-zA-Z0-9._-]*cloud[a-zA-Z0-9._-]*)`, 'g');
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    seen.add(`${name}:${m[1]}`);
+  }
+  return Array.from(seen);
+}
+
+/**
+ * Fetches the Ollama cloud model catalog. Routed through the Vite dev proxy
+ * (`/ollama-www` -> https://ollama.com) to avoid browser CORS restrictions.
+ * Production deployments must mirror this proxy route.
+ */
+export async function fetchCloudCatalog(): Promise<CloudModel[]> {
+  const response = await fetch('/ollama-www/search?c=cloud');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch cloud catalog (${response.status})`);
+  }
+  return parseCloudCatalog(await response.text());
+}
+
+/**
+ * Fetches the runnable cloud tags for a given model name.
+ */
+export async function fetchCloudTags(name: string): Promise<string[]> {
+  const response = await fetch(`/ollama-www/library/${encodeURIComponent(name)}/tags`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tags for ${name} (${response.status})`);
+  }
+  return parseCloudTags(await response.text(), name);
 }
 

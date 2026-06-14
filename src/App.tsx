@@ -16,10 +16,11 @@ import {
   Edit2,
   Check,
   Terminal,
-  Trash
+  Trash,
+  Cloud
 } from 'lucide-react';
-import { checkOllamaStatus, fetchModels, chatStream, pullModelStream } from './ollama';
-import type { Message, OllamaModel, PullProgress } from './ollama';
+import { checkOllamaStatus, fetchModels, chatStream, pullModelStream, fetchCloudCatalog, fetchCloudTags } from './ollama';
+import type { Message, OllamaModel, PullProgress, CloudModel } from './ollama';
 import { Markdown } from './Markdown';
 
 interface ChatSession {
@@ -110,6 +111,14 @@ export default function App() {
   const [isPulling, setIsPulling] = useState(false);
   const [pullError, setPullError] = useState<string | null>(null);
   const abortPullRef = useRef<(() => void) | null>(null);
+
+  // --- Cloud Catalog Browse States ---
+  const [showCloudModal, setShowCloudModal] = useState(false);
+  const [cloudModels, setCloudModels] = useState<CloudModel[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [cloudTags, setCloudTags] = useState<Record<string, string[]>>({});
+  const [expandedCloud, setExpandedCloud] = useState<string | null>(null);
 
   // --- DOM Refs ---
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -246,6 +255,45 @@ export default function App() {
     setPullProgress(null);
     setPullError('Download canceled.');
   }, [abortPullRef, setIsPulling, setPullProgress, setPullError]);
+
+  // --- Cloud Catalog Handlers ---
+  const handleOpenCloud = useCallback(async () => {
+    setShowCloudModal(true);
+    if (cloudModels.length > 0) return; // already loaded
+    setCloudLoading(true);
+    setCloudError(null);
+    try {
+      setCloudModels(await fetchCloudCatalog());
+    } catch (e) {
+      setCloudError((e as Error).message || 'Failed to fetch cloud catalog.');
+    } finally {
+      setCloudLoading(false);
+    }
+  }, [cloudModels.length]);
+
+  const handleExpandCloud = useCallback(async (name: string) => {
+    if (expandedCloud === name) {
+      setExpandedCloud(null);
+      return;
+    }
+    setExpandedCloud(name);
+    if (cloudTags[name] !== undefined) return; // tags already fetched
+    try {
+      const tags = await fetchCloudTags(name);
+      setCloudTags((prev) => ({ ...prev, [name]: tags }));
+    } catch {
+      setCloudTags((prev) => ({ ...prev, [name]: [] }));
+    }
+  }, [expandedCloud, cloudTags]);
+
+  // Hand off a chosen cloud tag to the existing pull flow (prefilled).
+  const handlePullCloud = useCallback((tag: string) => {
+    setShowCloudModal(false);
+    setPullError(null);
+    setPullProgress(null);
+    setPullModelName(tag);
+    setShowPullModal(true);
+  }, []);
 
   // Helper to load session configurations into UI controls
   const applySessionParams = useCallback((session: ChatSession) => {
@@ -852,6 +900,14 @@ export default function App() {
                   >
                     + ADD
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCloud}
+                    className="btn-neon-purple py-1 px-2.5 text-[8px] font-mono shrink-0 h-[28px] flex items-center justify-center gap-1"
+                    title="Browse Ollama cloud models"
+                  >
+                    <Cloud className="h-3 w-3" /> CLOUD
+                  </button>
                 </div>
                 {!isConnected && (
                   <p className="text-[10px] text-rose-400 font-mono mt-1">Start Ollama to list models</p>
@@ -1294,6 +1350,79 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cloud Catalog Browse Modal */}
+      {showCloudModal && (
+        <div className="retro-modal-overlay">
+          <div className="retro-modal-content">
+            <button
+              onClick={() => setShowCloudModal(false)}
+              className="absolute top-2.5 right-2.5 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <h2 className="text-xs font-bold text-[#ff007f] mb-3 font-mono flex items-center gap-2">
+              <Cloud className="h-4 w-4" /> BROWSE OLLAMA CLOUD MODELS
+            </h2>
+
+            <p className="text-[11px] text-slate-400 mb-4 font-mono leading-relaxed">
+              Cloud models run on Ollama's servers. Sign in first with <span className="text-[#fffb00]">ollama signin</span>, then pick a model to see its tags and pull one.
+            </p>
+
+            {cloudLoading && (
+              <p className="text-[11px] text-slate-400 font-mono">Fetching catalog from ollama.com…</p>
+            )}
+
+            {cloudError && (
+              <div className="p-2 border border-rose-500/20 bg-rose-950/15 text-rose-400 text-[10px] font-mono leading-relaxed">
+                ⚠️ {cloudError}
+              </div>
+            )}
+
+            {!cloudLoading && !cloudError && (
+              <div className="space-y-1 max-h-[50vh] overflow-y-auto font-mono pr-1">
+                {cloudModels.length === 0 ? (
+                  <p className="text-[10px] text-slate-500">No cloud models found.</p>
+                ) : (
+                  cloudModels.map((m) => (
+                    <div key={m.name} className="border-b border-white/5 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleExpandCloud(m.name)}
+                        className="w-full flex items-center justify-between text-left gap-2"
+                      >
+                        <span className="text-[11px] text-[#fffb00] truncate">{m.name}</span>
+                        <span className="text-[9px] text-slate-500 shrink-0">{m.capabilities.join(', ')}</span>
+                      </button>
+                      {expandedCloud === m.name && (
+                        <div className="pl-3 pt-1.5 space-y-1">
+                          {cloudTags[m.name] === undefined ? (
+                            <p className="text-[10px] text-slate-500">Loading tags…</p>
+                          ) : cloudTags[m.name].length === 0 ? (
+                            <p className="text-[10px] text-slate-500">No cloud tags found.</p>
+                          ) : (
+                            cloudTags[m.name].map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => handlePullCloud(tag)}
+                                className="block text-[10px] text-[#39ff14] hover:underline"
+                              >
+                                + pull {tag}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

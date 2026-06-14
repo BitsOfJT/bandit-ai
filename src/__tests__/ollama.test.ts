@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach, afterAll } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { checkOllamaStatus, fetchModels, chatStream, pullModelStream } from '../ollama'
+import { checkOllamaStatus, fetchModels, chatStream, pullModelStream, parseCloudCatalog, parseCloudTags } from '../ollama'
 import type { PullProgress } from '../ollama'
 
 // Helper to build an NDJSON ReadableStream from an array of JSON objects
@@ -321,5 +321,75 @@ describe('pullModelStream', () => {
 
     expect(onDone).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
+  })
+})
+describe('chatStream error surfacing', () => {
+  it('surfaces the Ollama JSON error body instead of a bare status code', async () => {
+    server.use(
+      http.post('/api/chat', () =>
+        HttpResponse.json(
+          { error: "model 'bogus' not found, try pulling it first" },
+          { status: 404 }
+        )
+      )
+    )
+
+    const onError = vi.fn()
+    await new Promise<void>((resolve) => {
+      chatStream(
+        'bogus',
+        [{ role: 'user', content: 'hi' }],
+        {},
+        () => {},
+        () => resolve(),
+        (err) => {
+          onError(err)
+          resolve()
+        }
+      )
+    })
+
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(onError.mock.calls[0][0].message).toContain('not found, try pulling it first')
+  })
+})
+
+describe('parseCloudCatalog', () => {
+  const fixture = `
+    <ul>
+      <li x-test-model>
+        <span x-test-search-response-title>gpt-oss</span>
+        <span x-test-capability>tools</span>
+        <span x-test-capability>thinking</span>
+        <span class="cloud">cloud</span>
+      </li>
+      <li x-test-model>
+        <span x-test-search-response-title>deepseek-v4-pro</span>
+        <span x-test-capability>thinking</span>
+      </li>
+    </ul>`
+
+  it('extracts cloud model names and capabilities', () => {
+    const models = parseCloudCatalog(fixture)
+    expect(models).toHaveLength(2)
+    expect(models[0]).toEqual({ name: 'gpt-oss', capabilities: ['tools', 'thinking'] })
+    expect(models[1].name).toBe('deepseek-v4-pro')
+  })
+
+  it('returns an empty array when there are no models', () => {
+    expect(parseCloudCatalog('<div>nothing</div>')).toEqual([])
+  })
+})
+
+describe('parseCloudTags', () => {
+  const fixture = `
+    <a href="/library/gpt-oss:latest">latest</a>
+    <a href="/library/gpt-oss:20b-cloud">20b-cloud</a>
+    <a href="/library/gpt-oss:120b-cloud">120b-cloud</a>
+    <a href="/library/gpt-oss:120b-cloud">dup</a>`
+
+  it('returns deduped cloud-only tags', () => {
+    const tags = parseCloudTags(fixture, 'gpt-oss')
+    expect(tags.sort()).toEqual(['gpt-oss:120b-cloud', 'gpt-oss:20b-cloud'])
   })
 })

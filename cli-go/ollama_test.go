@@ -332,3 +332,77 @@ func TestChatStream_SendsCorrectRequestBody(t *testing.T) {
 		t.Errorf("expected num_ctx 4096, got %d", reqBody.Options.NumCtx)
 	}
 }
+func TestChatStream_SurfacesOllamaErrorBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"model 'bogus' not found, try pulling it first"}`))
+	}))
+	defer server.Close()
+
+	oldHost := OllamaHost
+	OllamaHost = server.URL
+	defer func() { OllamaHost = oldHost }()
+
+	s := &Session{Model: "bogus", Messages: []Message{{Role: "user", Content: "hi"}}}
+	_, err := chatStream(context.Background(), s, NewMarkdownFormatter())
+	if err == nil {
+		t.Fatal("expected an error from a 404 chat response")
+	}
+	if !strings.Contains(err.Error(), "not found, try pulling it first") {
+		t.Errorf("expected Ollama's error body to be surfaced, got: %v", err)
+	}
+}
+
+func TestFetchModels_DecodesMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"models":[{"name":"gemma4:e2b","size":1610000000,"details":{"parameter_size":"1.6B"},"capabilities":["completion","tools"]},{"name":"nomic-embed-text","size":270000000,"capabilities":["embedding"]}]}`))
+	}))
+	defer server.Close()
+
+	oldHost := OllamaHost
+	OllamaHost = server.URL
+	defer func() { OllamaHost = oldHost }()
+
+	models, err := fetchModels()
+	if err != nil {
+		t.Fatalf("fetchModels error: %v", err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(models))
+	}
+	if models[0].Details.ParameterSize != "1.6B" {
+		t.Errorf("expected parameter_size 1.6B, got %q", models[0].Details.ParameterSize)
+	}
+	if !models[0].hasChatCapability() {
+		t.Error("gemma4:e2b should be a chat-capable model")
+	}
+	if models[1].hasChatCapability() {
+		t.Error("embedding-only model should not be reported as chat-capable")
+	}
+}
+
+func TestPrintModelsList_MarksActiveAndNumbers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"models":[{"name":"llama3:8b","size":4700000000},{"name":"gemma4:e2b","size":1610000000}]}`))
+	}))
+	defer server.Close()
+
+	oldHost := OllamaHost
+	OllamaHost = server.URL
+	defer func() { OllamaHost = oldHost }()
+
+	oldModel := currentModel
+	currentModel = "llama3:8b"
+	defer func() { currentModel = oldModel }()
+
+	out := captureStdout(printModelsList)
+	for _, want := range []string{"Installed Models", "gemma4:e2b", "llama3:8b", "[1]", "[2]", "*"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected /models output to contain %q; got:\n%s", want, out)
+		}
+	}
+	// Sorted alphabetically: gemma4 before llama3.
+	if strings.Index(out, "gemma4:e2b") > strings.Index(out, "llama3:8b") {
+		t.Error("expected models sorted alphabetically (gemma4 before llama3)")
+	}
+}

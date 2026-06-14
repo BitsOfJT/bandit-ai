@@ -74,7 +74,9 @@ npm run cli
 npm run dev
 ```
 
-> **Production web UI**: Run `npm run build` to produce static files in `dist/`. Serve them with a reverse proxy (nginx, Caddy, etc.) that forwards `/api/*` to `http://127.0.0.1:11434`.
+> **Production web UI**: Run `npm run build` to produce static files in `dist/`. Serve them with a reverse proxy (nginx, Caddy, etc.) that forwards `/api/*` to `http://127.0.0.1:11434`. To enable cloud-model browsing in the web UI, also forward `/ollama-www/*` to `https://ollama.com/*` (the Vite dev server does this automatically).
+
+> **Cloud models**: Both interfaces can run [Ollama cloud models](https://ollama.com/search?c=cloud) (e.g. `gpt-oss:120b-cloud`). Run `ollama signin` first, then pull/select the model. In the CLI use `/cloud` to browse; in the web UI click the **☁ CLOUD** button next to the model selector.
 
 ## CLI Commands
 
@@ -82,7 +84,9 @@ npm run dev
 |---------|-------------|
 | `/help` | Show command reference |
 | `/persona <name>` | Switch persona: `hacker`, `philosopher`, or `standard` |
-| `/model <name>` | Switch the active Ollama model |
+| `/models` | List installed models (numbered, active marked, with sizes) |
+| `/model <n\|name>` | Switch the active model by list number or name (e.g. `/model 2`) |
+| `/cloud [name]` | Browse Ollama cloud models; `/cloud <name>` shows its runnable tags |
 | `/pull <name>` | Download a model from the Ollama registry |
 | `/sessions` | List saved chat sessions |
 | `/load <idx>` | Resume a session by index number |

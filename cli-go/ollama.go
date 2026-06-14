@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -18,7 +19,32 @@ type TagsResponse struct {
 }
 
 type ModelInfo struct {
-	Name string `json:"name"`
+	Name         string       `json:"name"`
+	Size         int64        `json:"size"`
+	Details      ModelDetails `json:"details"`
+	Capabilities []string     `json:"capabilities"`
+}
+
+type ModelDetails struct {
+	ParameterSize string `json:"parameter_size"`
+}
+
+// ollamaError reads a non-2xx response body and returns the most useful error
+// it can. Ollama returns JSON like {"error":"model 'x' not found, try pulling
+// it first"} which is far more helpful than a bare status code.
+func ollamaError(resp *http.Response) error {
+	body, _ := io.ReadAll(resp.Body)
+	var e struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(body, &e) == nil && e.Error != "" {
+		return fmt.Errorf("%s", e.Error)
+	}
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed != "" {
+		return fmt.Errorf("http %d: %s", resp.StatusCode, trimmed)
+	}
+	return fmt.Errorf("http %d", resp.StatusCode)
 }
 
 type ChatRequest struct {
@@ -50,7 +76,8 @@ type PullResponse struct {
 	Total     int64  `json:"total"`
 }
 
-func verifyOllama() ([]string, error) {
+// fetchModels returns the full info for every model in the local Ollama registry.
+func fetchModels() ([]ModelInfo, error) {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
@@ -61,19 +88,42 @@ func verifyOllama() ([]string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http error: %d", resp.StatusCode)
+		return nil, ollamaError(resp)
 	}
 
 	var tags TagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
 		return nil, err
 	}
+	return tags.Models, nil
+}
 
+// verifyOllama returns the names of locally available models (and surfaces
+// connectivity errors). It is the lightweight check used at startup.
+func verifyOllama() ([]string, error) {
+	models, err := fetchModels()
+	if err != nil {
+		return nil, err
+	}
 	var modelNames []string
-	for _, m := range tags.Models {
+	for _, m := range models {
 		modelNames = append(modelNames, m.Name)
 	}
 	return modelNames, nil
+}
+
+// hasChatCapability reports whether a model can be used for chat/completion.
+// Embedding-only models (e.g. nomic-embed-text) cannot and would fail on /api/chat.
+func (m ModelInfo) hasChatCapability() bool {
+	if len(m.Capabilities) == 0 {
+		return true // older Ollama versions omit capabilities; assume usable
+	}
+	for _, c := range m.Capabilities {
+		if c == "completion" || c == "chat" || c == "vision" || c == "thinking" || c == "tools" {
+			return true
+		}
+	}
+	return false
 }
 
 func pullModel(ctx context.Context, modelName string) error {
@@ -98,7 +148,7 @@ func pullModel(ctx context.Context, modelName string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("http error: %d", resp.StatusCode)
+		return ollamaError(resp)
 	}
 
 	reader := bufio.NewReader(resp.Body)
@@ -175,7 +225,7 @@ func chatStream(ctx context.Context, s *Session, formatter *MarkdownFormatter) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("http error: %d", resp.StatusCode)
+		return "", ollamaError(resp)
 	}
 
 	fmt.Printf("\n\x1b[32m\x1b[1mBandit:\x1b[0m \x1b[36m")

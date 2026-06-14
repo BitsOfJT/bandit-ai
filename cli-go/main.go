@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -75,8 +76,118 @@ func getAsciiArt(modelName string) string {
 		"                                                       " + CGray + "." + CReset + "\n" +
 		" " + CGray + ".                                                    :" + CReset + "\n\n" +
 		"  " + CReset + CBright + "Active Model:" + CReset + " " + CYellow + CBright + modelName + CReset + " | " + CBright + "Status:" + CReset + " " + CGreen + "READY FOR SCAVENGING" + CReset + "\n" +
-		"  " + CBright + "Commands:" + CReset + " " + CMagenta + "/exit" + CReset + ", " + CMagenta + "/clear" + CReset + ", " + CMagenta + "/new" + CReset + ", " + CMagenta + "/sessions" + CReset + ", " + CMagenta + "/load" + CReset + ", " + CMagenta + "/persona" + CReset + ", " + CMagenta + "/model" + CReset + ", " + CMagenta + "/pull" + CReset + ", " + CMagenta + "/help" + CReset + "\n"
+		"  " + CBright + "Commands:" + CReset + " " + CMagenta + "/exit" + CReset + ", " + CMagenta + "/clear" + CReset + ", " + CMagenta + "/new" + CReset + ", " + CMagenta + "/sessions" + CReset + ", " + CMagenta + "/load" + CReset + ", " + CMagenta + "/persona" + CReset + ", " + CMagenta + "/models" + CReset + ", " + CMagenta + "/model" + CReset + ", " + CMagenta + "/cloud" + CReset + ", " + CMagenta + "/pull" + CReset + ", " + CMagenta + "/help" + CReset + "\n"
 	return logo
+}
+
+// formatModelSize renders a byte count as a human-friendly GB/MB string.
+func formatModelSize(bytes int64) string {
+	if bytes <= 0 {
+		return ""
+	}
+	const gb = 1024.0 * 1024.0 * 1024.0
+	const mb = 1024.0 * 1024.0
+	if float64(bytes) >= gb {
+		return fmt.Sprintf("%.1f GB", float64(bytes)/gb)
+	}
+	if float64(bytes) < mb {
+		return "" // tiny manifest (e.g. a cloud model) — size isn't meaningful
+	}
+	return fmt.Sprintf("%.0f MB", float64(bytes)/mb)
+}
+
+// sortedModels returns the local models sorted by name for a stable, numbered list.
+func sortedModels() ([]ModelInfo, error) {
+	models, err := fetchModels()
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(models, func(i, j int) bool { return models[i].Name < models[j].Name })
+	return models, nil
+}
+
+// printModelsList shows the locally installed models, numbered, with the active
+// one marked. Numbers can be passed to /model to switch (e.g. /model 2).
+func printModelsList() {
+	models, err := sortedModels()
+	if err != nil {
+		fmt.Printf("\n%sWARNING:%s Couldn't reach Ollama on %s to list models. Is it running?%s\n\n", CRed+CBright, CReset, OllamaHost, CReset)
+		return
+	}
+	if len(models) == 0 {
+		fmt.Printf("\n%sNo models installed.%s Download one with %s/pull gemma4:e2b%s, or browse cloud models with %s/cloud%s.\n\n",
+			CYellow, CReset, CMagenta, CReset, CMagenta, CReset)
+		return
+	}
+
+	fmt.Printf("\n%s%sInstalled Models:%s\n", CCyan, CBright, CReset)
+	for idx, m := range models {
+		marker := " "
+		if m.Name == currentModel {
+			marker = "\x1b[32m*\x1b[0m"
+		}
+		meta := ""
+		if size := formatModelSize(m.Size); size != "" {
+			meta = size
+		}
+		if m.Details.ParameterSize != "" {
+			if meta != "" {
+				meta += ", "
+			}
+			meta += m.Details.ParameterSize
+		}
+		if meta != "" {
+			meta = fmt.Sprintf(" %s(%s)%s", CGray, meta, CReset)
+		}
+		warn := ""
+		if !m.hasChatCapability() {
+			warn = fmt.Sprintf(" %s[not a chat model]%s", CRed, CReset)
+		}
+		fmt.Printf("  [%d] %s %s%-28s%s%s%s\n", idx+1, marker, CYellow, m.Name, CReset, meta, warn)
+	}
+	fmt.Printf("\nSwitch with %s/model <number>%s or %s/model <name>%s. Browse cloud models with %s/cloud%s.\n\n",
+		CMagenta, CReset, CMagenta, CReset, CMagenta, CReset)
+}
+
+// resolveModelArg turns a /model argument into a model name. A bare integer is
+// treated as a 1-based index into the installed-model list; anything else is
+// returned as-is (a literal model name, possibly a cloud model not yet installed).
+func resolveModelArg(arg string) string {
+	var idx int
+	if _, err := fmt.Sscanf(arg, "%d", &idx); err == nil && fmt.Sprintf("%d", idx) == arg {
+		models, err := sortedModels()
+		if err == nil && idx >= 1 && idx <= len(models) {
+			return models[idx-1].Name
+		}
+	}
+	return arg
+}
+
+// printChatError shows the real reason a chat request failed and, where
+// possible, an actionable next step. The most common case is switching to a
+// model that isn't installed — which should point the user at /pull, not at
+// "is Ollama running?".
+func printChatError(err error) {
+	msg := err.Error()
+	low := strings.ToLower(msg)
+
+	fmt.Printf("\n\n%s%sError:%s %s\n", CRed, CBright, CReset, msg)
+
+	switch {
+	case strings.Contains(low, "not found") || strings.Contains(low, "try pulling"):
+		fmt.Printf("%sHint:%s Run %s/models%s to see installed models, or %s/pull %s%s to download this one.\n\n",
+			CYellow, CReset, CMagenta, CReset, CMagenta, currentModel, CReset)
+	case strings.Contains(low, "unauthorized") || strings.Contains(low, "sign in") ||
+		strings.Contains(low, "signin") || strings.Contains(low, "401") || strings.Contains(low, "403"):
+		fmt.Printf("%sHint:%s Cloud models need an Ollama account — run %sollama signin%s in a terminal, then retry.\n\n",
+			CYellow, CReset, CCyan, CReset)
+	case strings.Contains(low, "connection refused") || strings.Contains(low, "no such host") ||
+		strings.Contains(low, "dial ") || strings.Contains(low, "timeout") || strings.Contains(low, "deadline"):
+		fmt.Printf("%sHint:%s Can't reach Ollama on %s. Is it running? Launch it from your menu bar.\n\n",
+			CYellow, CReset, OllamaHost)
+	default:
+		fmt.Printf("\n")
+	}
 }
 
 func printHelp() {
@@ -87,13 +198,15 @@ func printHelp() {
 		"  %s/sessions%s        List all saved sessions\n"+
 		"  %s/load <idx>%s      Resume a saved session\n"+
 		"  %s/persona <name>%s Switch persona (%shacker, philosopher, standard%s)\n"+
-		"  %s/model <name>%s    Swap the active LLM (e.g. /model gemma4:e4b)\n"+
+		"  %s/models%s          List installed models (numbered, active marked)\n"+
+		"  %s/model <n|name>%s  Swap the active LLM (e.g. /model 2 or /model gemma4:e4b)\n"+
+		"  %s/cloud [name]%s    Browse Ollama cloud models (needs 'ollama signin')\n"+
 		"  %s/pull <name>%s     Download a new model from the Ollama registry\n"+
 		"  %s/temp <val>%s      Get/Set LLM temperature (0.0 to 2.0)\n"+
 		"  %s/top_p <val>%s     Get/Set LLM top_p (0.0 to 1.0)\n"+
 		"  %s/ctx <val>%s       Get/Set LLM context length in tokens\n"+
 		"  %s/exit%s            Shutdown Bandit CLI and return to shell\n\n",
-		CYellow, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CGray, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset)
+		CYellow, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CGray, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset, CMagenta, CReset)
 }
 
 func saveCurrentSession() {
@@ -468,29 +581,50 @@ func main() {
 				continue
 			}
 
+			if command == "/models" {
+				printModelsList()
+				continue
+			}
+
 			if command == "/model" {
 				if arg == "" {
-					fmt.Printf("\nActive model: %s%s%s\n\n", CYellow, currentModel, CReset)
+					fmt.Printf("\nActive model: %s%s%s\n", CYellow, currentModel, CReset)
+					printModelsList()
 				} else {
-					if !modelNameRegex.MatchString(arg) {
+					target := resolveModelArg(arg)
+					if !modelNameRegex.MatchString(target) {
 						fmt.Printf("\n%sInvalid model name. Use only letters, numbers, :, _, ., /, -%s\n\n", CRed, CReset)
 						continue
 					}
 					availableModels, _ := verifyOllama()
 					found := false
 					for _, m := range availableModels {
-						if m == arg {
+						if m == target {
 							found = true
 							break
 						}
 					}
-					currentModel = arg
+					currentModel = target
 					saveCurrentSession()
 					if !found {
-						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s (not found in Ollama — may fail on next chat)\n\n", CGreen, CReset, CYellow, currentModel, CReset)
+						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n%sNote:%s not installed locally — run %s/pull %s%s first, or %s/cloud%s to browse cloud models.\n\n",
+							CGreen, CReset, CYellow, currentModel, CReset, CYellow, CReset, CMagenta, currentModel, CReset, CMagenta, CReset)
 					} else {
 						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n\n", CGreen, CReset, CYellow, currentModel, CReset)
 					}
+				}
+				continue
+			}
+
+			if command == "/cloud" {
+				if arg == "" {
+					printCloudCatalog()
+				} else {
+					if !modelNameRegex.MatchString(arg) {
+						fmt.Printf("\n%sInvalid model name. Use only letters, numbers, :, _, ., /, -%s\n\n", CRed, CReset)
+						continue
+					}
+					printCloudTags(arg)
 				}
 				continue
 			}
@@ -573,7 +707,7 @@ func main() {
 		formatter := NewMarkdownFormatter()
 		accumulated, err := chatStream(context.Background(), currentSession, formatter)
 		if err != nil {
-			fmt.Printf("\n\n%s%sError:%s Failed to scan Ollama. Is it running? (%s)\n\n", CRed, CBright, CReset, err)
+			printChatError(err)
 			messages = messages[:len(messages)-1]
 			saveCurrentSession()
 		} else {

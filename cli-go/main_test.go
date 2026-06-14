@@ -831,3 +831,40 @@ func TestHelpCommand_DispatchesToPrintHelp(t *testing.T) {
 		t.Error("expected help to include /new")
 	}
 }
+func TestFormatModelSize(t *testing.T) {
+	cases := []struct {
+		in   int64
+		want string
+	}{
+		{0, ""},
+		{500, ""},                     // sub-MB (e.g. cloud manifest) → hidden
+		{5 * 1024 * 1024, "5 MB"},
+		{2 * 1024 * 1024 * 1024, "2.0 GB"},
+	}
+	for _, c := range cases {
+		if got := formatModelSize(c.in); got != c.want {
+			t.Errorf("formatModelSize(%d) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestModelInfo_HasChatCapability(t *testing.T) {
+	if !(ModelInfo{Capabilities: nil}).hasChatCapability() {
+		t.Error("nil capabilities (older Ollama) should be treated as usable")
+	}
+	if !(ModelInfo{Capabilities: []string{"completion"}}).hasChatCapability() {
+		t.Error("completion model should be chat-capable")
+	}
+	if (ModelInfo{Capabilities: []string{"embedding"}}).hasChatCapability() {
+		t.Error("embedding-only model should not be chat-capable")
+	}
+}
+
+func TestPrintHelp_IncludesNewCommands(t *testing.T) {
+	out := captureStdout(printHelp)
+	for _, cmd := range []string{"/models", "/cloud"} {
+		if !strings.Contains(out, cmd) {
+			t.Errorf("expected help output to contain %q", cmd)
+		}
+	}
+}

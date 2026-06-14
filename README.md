@@ -126,7 +126,7 @@ Web interface sessions are stored securely in your browser's local storage (`loc
 ## 🛠️ Tech Stack
 - **CLI Core**: Go (compiled binary), native standard streams, and colorized ANSI streams.
 - **Frontend App**: React (TypeScript), Vite, CSS Variables, Lucide icons, and modern viewport layouts.
-- **Local Engine**: Ollama HTTP API (`http://127.0.0.1:11434`).
+- **Local Engine**: Ollama HTTP API.
 
 ---
 

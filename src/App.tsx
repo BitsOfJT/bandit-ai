@@ -704,7 +704,7 @@ export default function App() {
             <div>
               <h1 className="text-base font-bold tracking-wider text-slate-100 flex items-center gap-1.5 m-0">
                 BANDIT AI
-                <span className="text-[10px] px-1.5 py-0.5 rounded-none bg-[#9d4edd]/35 text-[#d8b4fe] border border-[#9d4edd]/30 font-retro-mono-sm">v0.1.1</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-none bg-[#9d4edd]/35 text-[#d8b4fe] border border-[#9d4edd]/30 font-retro-mono-sm">v0.2.0</span>
               </h1>
               <p className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
                 {isCheckingConn ? (

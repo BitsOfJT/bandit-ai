@@ -74,7 +74,7 @@ bandit
 ### Option B: Standalone Desktop App (macOS DMG) 🖥️
 The easiest way to run Bandit AI on macOS is to download the standalone desktop application:
 
-1. Download the latest `Bandit_AI_v0.1.1.dmg` setup package from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page.
+1. Download the latest `Bandit_AI_v0.2.0.dmg` setup package from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page.
 2. Double-click the `.dmg` file to mount it.
 3. Drag **Bandit AI** directly into your **Applications** folder.
 4. Launch **Bandit AI** from your Applications or Launchpad! *(It will automatically handle running the local Vite server and connecting to Ollama in the background)*.

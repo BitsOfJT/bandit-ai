@@ -22,21 +22,43 @@ A local-first AI chatbot with a retro cyberpunk aesthetic. Bandit runs entirely 
 
 ## Quick Start
 
-### Pre-built binaries (recommended)
+> Bandit needs [Ollama](https://ollama.com) running first — see [Prerequisites](#prerequisites) above.
 
-Download the latest binaries from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page:
+### Install the CLI (recommended)
+
+**curl** (macOS & Linux):
+```bash
+curl -fsSL https://raw.githubusercontent.com/BitsOfJT/bandit-ai/main/install.sh | sh
+bandit
+```
+
+**Homebrew** (macOS & Linux):
+```bash
+brew install BitsOfJT/bandit/bandit
+bandit
+```
+
+Both pull the matching binary from the latest [release](https://github.com/BitsOfJT/bandit-ai/releases) and put `bandit` on your `PATH`. Because they download over the command line, macOS does **not** quarantine the binary — it runs without a Gatekeeper prompt.
+
+### Manual download
+
+Grab a binary from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page:
 
 | Platform | Binary |
 |----------|--------|
-| macOS (arm64) | `bandit` |
+| macOS (Apple Silicon) | `bandit` |
 | Linux (amd64) | `bandit-linux` |
 | Windows (amd64) | `bandit.exe` |
 
-Make it executable and run it:
+The binaries are **unsigned**. A browser download gets quarantined by macOS Gatekeeper and refuses to run — it can look like nothing happens. Clear the quarantine flag, then run it:
+
 ```bash
 chmod +x bandit
+xattr -d com.apple.quarantine bandit   # macOS only: lift Gatekeeper quarantine
 ./bandit
 ```
+
+> On Windows, SmartScreen may show "Windows protected your PC" — click **More info → Run anyway**.
 
 ### Build from source
 

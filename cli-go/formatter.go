@@ -69,6 +69,10 @@ func (m *MarkdownFormatter) FormatAndPrint(token string) {
 		}
 
 		if char == '*' {
+			if m.InInlineCode || m.InCodeBlock {
+				output += "*"
+				continue
+			}
 			m.StarCount++
 			continue
 		} else {
@@ -82,6 +86,11 @@ func (m *MarkdownFormatter) FormatAndPrint(token string) {
 				m.StarCount = 0
 			} else if m.StarCount == 1 {
 				output += "*"
+				m.StarCount = 0
+			} else if m.StarCount > 2 {
+				for i := 0; i < m.StarCount; i++ {
+					output += "*"
+				}
 				m.StarCount = 0
 			}
 		}
@@ -124,8 +133,12 @@ func (m *MarkdownFormatter) Flush() {
 			} else {
 				output += CReset + m.CurrentStyle
 			}
-		} else {
+		} else if m.StarCount == 1 {
 			output += "*"
+		} else {
+			for i := 0; i < m.StarCount; i++ {
+				output += "*"
+			}
 		}
 		m.StarCount = 0
 	}
@@ -174,15 +187,12 @@ func ColorizeMarkdown(text string) string {
 			formatted = reCode.ReplaceAllString(formatted, CYellow+"$1"+CReset+CCyan)
 
 			lines := strings.Split(formatted, "\n")
+			reList := regexp.MustCompile(`^(\s*)([-*+])\s+(.*)$`)
 			for i, line := range lines {
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") || strings.HasPrefix(trimmed, "+ ") {
-					idxStar := strings.Index(line, trimmed[0:1])
-					if idxStar != -1 {
-						indent := line[:idxStar]
-						content := trimmed[2:]
-						lines[i] = fmt.Sprintf("%s  %s•%s %s%s", indent, CYellow, CReset, CCyan, content)
-					}
+				if matches := reList.FindStringSubmatch(line); matches != nil {
+					indent := matches[1]
+					content := matches[3]
+					lines[i] = fmt.Sprintf("%s  %s•%s %s%s", indent, CYellow, CReset, CCyan, content)
 				}
 			}
 			result = append(result, strings.Join(lines, "\n"))

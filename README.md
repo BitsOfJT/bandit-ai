@@ -90,6 +90,8 @@ npm run dev
 ```
 Then navigate to the local server port displayed in your terminal (usually [http://localhost:5173](http://localhost:5173)).
 
+> **Note:** The web UI's `/api` calls are proxied to Ollama by the Vite dev server. For production builds (`npm run build` + `npm run preview`), you must configure a reverse proxy (nginx, Caddy, etc.) to forward `/api/*` to `http://127.0.0.1:11434`.
+
 ---
 
 ## 🕹️ CLI Commands Cheat Sheet
@@ -122,9 +124,21 @@ Web interface sessions are stored securely in your browser's local storage (`loc
 ---
 
 ## 🛠️ Tech Stack
-- **CLI Core**: Node.js, readline, native standard streams, and colorized ANSI streams.
+- **CLI Core**: Go (compiled binary), native standard streams, and colorized ANSI streams.
 - **Frontend App**: React (TypeScript), Vite, CSS Variables, Lucide icons, and modern viewport layouts.
 - **Local Engine**: Ollama HTTP API (`http://127.0.0.1:11434`).
+
+---
+
+## 🧪 Running Tests
+
+```bash
+npm test            # Run TypeScript/React unit tests (Vitest)
+npm run test:watch  # Run tests in watch mode
+cd cli-go && go test ./... -v  # Run Go CLI tests
+```
+
+---
 
 *Scavenge responsibly!* 🦝💾
 # bandit-ai

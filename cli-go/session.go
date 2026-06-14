@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -24,7 +25,7 @@ type Session struct {
 	CreatedAt    int64     `json:"createdAt"`
 }
 
-func getSessionsDir() (string, error) {
+var getSessionsDir = func() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -33,7 +34,7 @@ func getSessionsDir() (string, error) {
 	return dir, nil
 }
 
-func ensureSessionsDir() (string, error) {
+var ensureSessionsDir = func() (string, error) {
 	dir, err := getSessionsDir()
 	if err != nil {
 		return "", err
@@ -56,7 +57,7 @@ func saveSession(s *Session) error {
 		return err
 	}
 
-	return os.WriteFile(filePath, data, 0644)
+	return os.WriteFile(filePath, data, 0600)
 }
 
 func loadSession(id string) (*Session, error) {
@@ -95,11 +96,13 @@ func listSessions() ([]Session, error) {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
 			data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
 			if err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Skipping unreadable session file %s: %v\n", entry.Name(), err)
 				continue
 			}
 
 			var s Session
 			if err := json.Unmarshal(data, &s); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Skipping corrupt session file %s: %v\n", entry.Name(), err)
 				continue
 			}
 			sessions = append(sessions, s)

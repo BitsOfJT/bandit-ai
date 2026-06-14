@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-const OllamaHost = "http://127.0.0.1:11434"
+var OllamaHost = "http://127.0.0.1:11434"
 
 type TagsResponse struct {
 	Models []ModelInfo `json:"models"`
@@ -75,7 +76,7 @@ func verifyOllama() ([]string, error) {
 	return modelNames, nil
 }
 
-func pullModel(modelName string) error {
+func pullModel(ctx context.Context, modelName string) error {
 	fmt.Printf("\n\x1b[32mBandit:\x1b[0m Connecting to Ollama to pull \x1b[33m%s\x1b[0m...\n", modelName)
 	
 	reqBody, err := json.Marshal(PullRequest{Name: modelName, Stream: true})
@@ -83,7 +84,14 @@ func pullModel(modelName string) error {
 		return err
 	}
 
-	resp, err := http.Post(OllamaHost+"/api/pull", "application/json", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", OllamaHost+"/api/pull", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -138,7 +146,7 @@ func pullModel(modelName string) error {
 	return nil
 }
 
-func chatStream(s *Session, formatter *MarkdownFormatter) (string, error) {
+func chatStream(ctx context.Context, s *Session, formatter *MarkdownFormatter) (string, error) {
 	reqBody, err := json.Marshal(ChatRequest{
 		Model:    s.Model,
 		Messages: s.Messages,
@@ -153,7 +161,14 @@ func chatStream(s *Session, formatter *MarkdownFormatter) (string, error) {
 		return "", err
 	}
 
-	resp, err := http.Post(OllamaHost+"/api/chat", "application/json", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", OllamaHost+"/api/chat", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}

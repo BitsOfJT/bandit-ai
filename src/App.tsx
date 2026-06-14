@@ -74,12 +74,22 @@ export default function App() {
   // --- Ollama Connection States ---
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
+  const selectedModelRef = useRef(selectedModel);
   const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    selectedModelRef.current = selectedModel;
+  }, [selectedModel]);
+
   const [isCheckingConn, setIsCheckingConn] = useState(true);
 
   // --- Active Chat Settings / State ---
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const currentSessionIdRef = useRef(currentSessionId);
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [activePreset, setActivePreset] = useState<keyof typeof PERSONALITY_PRESETS>('hacker');
@@ -89,11 +99,6 @@ export default function App() {
   const [temperature, setTemperature] = useState(0.7);
   const [topP, setTopP] = useState(0.9);
   const [numCtx, setNumCtx] = useState(2048);
-
-  // --- Voice Synthesis ---
-  const [voiceEnabled] = useState(false);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // --- Stream Abort ---
   const abortStreamRef = useRef<(() => void) | null>(null);
@@ -110,18 +115,7 @@ export default function App() {
   const messageEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Initialize Speech Synthesis
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      synthRef.current = window.speechSynthesis;
-    }
-    return () => {
-      if (synthRef.current) {
-        synthRef.current.cancel();
-      }
-    };
-  }, []);
+  const lastPersistRef = useRef(0);
 
   // Load Go WebAssembly Markdown Parser
   useEffect(() => {
@@ -149,15 +143,16 @@ export default function App() {
         console.error('❌ Failed to initialize Go WASM parser:', err);
       }
     };
-    Promise.resolve().then(loadWasm);
+    loadWasm();
   }, []);
 
   // Sync active session changes back to the sessions array and localStorage
   const updateCurrentSession = useCallback((updates: Partial<ChatSession>) => {
-    if (!currentSessionId) return;
+    const sessionId = currentSessionIdRef.current;
+    if (!sessionId) return;
     setChatSessions(prev => {
       const next = prev.map(s => {
-        if (s.id === currentSessionId) {
+        if (s.id === sessionId) {
           return { ...s, ...updates };
         }
         return s;
@@ -165,7 +160,7 @@ export default function App() {
       localStorage.setItem('bandit_chat_sessions', JSON.stringify(next));
       return next;
     });
-  }, [currentSessionId, setChatSessions]);
+  }, [setChatSessions]);
 
   // Ping Ollama and fetch models
   const refreshOllama = useCallback(async () => {
@@ -178,8 +173,9 @@ export default function App() {
       const availableModels = await fetchModels();
       setModels(availableModels);
       if (availableModels.length > 0) {
-        const modelExists = availableModels.some(m => m.name === selectedModel);
-        if (!modelExists || !selectedModel) {
+        const currentModel = selectedModelRef.current;
+        const modelExists = availableModels.some(m => m.name === currentModel);
+        if (!modelExists || !currentModel) {
           // Prefer gemma4:e2b if available, else gemma4:e4b, else first model
           const gemma4e2b = availableModels.find(m => m.name === 'gemma4:e2b');
           const gemma4e4b = availableModels.find(m => m.name === 'gemma4:e4b');
@@ -196,12 +192,18 @@ export default function App() {
     } else {
       setModels([]);
     }
-  }, [selectedModel, updateCurrentSession]);
+  }, [updateCurrentSession]);
 
   // --- Pull/Download Model API Handler ---
   const handleStartPull = useCallback(async () => {
+    const MODEL_NAME_REGEX = /^[a-zA-Z0-9_:./-]+$/;
     const trimmed = pullModelName.trim();
     if (!trimmed) return;
+
+    if (!MODEL_NAME_REGEX.test(trimmed)) {
+      setPullError('Invalid model name. Use only letters, numbers, :, _, ., /, -');
+      return;
+    }
 
     setIsPulling(true);
     setPullProgress({ status: 'Initiating connection...' });
@@ -235,7 +237,7 @@ export default function App() {
     abortPullRef.current = abort;
   }, [pullModelName, refreshOllama, setIsPulling, setPullProgress, setPullError, setShowPullModal, setPullModelName]);
 
-  const handleCancelPull = () => {
+  const handleCancelPull = useCallback(() => {
     if (abortPullRef.current) {
       abortPullRef.current();
       abortPullRef.current = null;
@@ -243,7 +245,7 @@ export default function App() {
     setIsPulling(false);
     setPullProgress(null);
     setPullError('Download canceled.');
-  };
+  }, [abortPullRef, setIsPulling, setPullProgress, setPullError]);
 
   // Helper to load session configurations into UI controls
   const applySessionParams = useCallback((session: ChatSession) => {
@@ -273,8 +275,8 @@ export default function App() {
 
   // Initial load
   useEffect(() => {
-    Promise.resolve().then(() => {
-      refreshOllama();
+    const init = async () => {
+      await refreshOllama();
 
       // Load Chat Sessions from localStorage
       const savedSessions = localStorage.getItem('bandit_chat_sessions');
@@ -296,7 +298,7 @@ export default function App() {
       }
 
       // Initialize with a default chat session if none exists
-      const defaultId = `chat-${Date.now()}`;
+      const defaultId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const defaultSession: ChatSession = {
         id: defaultId,
         title: 'New Scavenge Session',
@@ -311,9 +313,9 @@ export default function App() {
       setChatSessions([defaultSession]);
       setCurrentSessionId(defaultId);
       localStorage.setItem('bandit_chat_sessions', JSON.stringify([defaultSession]));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    };
+    init();
+  }, [applySessionParams, refreshOllama]);
 
   // Find current session object
   const currentSession = chatSessions.find(s => s.id === currentSessionId);
@@ -345,7 +347,7 @@ export default function App() {
       setIsGenerating(false);
     }
 
-    const newId = `chat-${Date.now()}`;
+    const newId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const systemPrompt = activePreset === 'custom' ? customPromptText : PERSONALITY_PRESETS[activePreset].prompt;
     const newSession: ChatSession = {
       id: newId,
@@ -374,36 +376,25 @@ export default function App() {
   // Delete session
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (chatSessions.length <= 1) {
-      // Don't delete last chat, just clear it
-      setChatSessions(prev => {
-        const next = prev.map(s => {
-          if (s.id === id) {
-            return {
-              ...s,
-              title: 'New Scavenge Session',
-              messages: []
-            };
-          }
-          return s;
-        });
+    setChatSessions(prev => {
+      if (prev.length <= 1) {
+        const next = prev.map(s => s.id === id ? { ...s, title: 'New Scavenge Session', messages: [] } : s);
         localStorage.setItem('bandit_chat_sessions', JSON.stringify(next));
         return next;
-      });
-      return;
-    }
+      }
 
-    const index = chatSessions.findIndex(s => s.id === id);
-    const nextSessions = chatSessions.filter(s => s.id !== id);
-    setChatSessions(nextSessions);
-    localStorage.setItem('bandit_chat_sessions', JSON.stringify(nextSessions));
+      const index = prev.findIndex(s => s.id === id);
+      const nextSessions = prev.filter(s => s.id !== id);
+      localStorage.setItem('bandit_chat_sessions', JSON.stringify(nextSessions));
 
-    if (currentSessionId === id) {
-      const nextActiveIndex = index === 0 ? 0 : index - 1;
-      const nextActive = nextSessions[nextActiveIndex];
-      setCurrentSessionId(nextActive.id);
-      applySessionParams(nextActive);
-    }
+      if (currentSessionIdRef.current === id) {
+        const nextActiveIndex = index === 0 ? 0 : index - 1;
+        const nextActive = nextSessions[nextActiveIndex];
+        setCurrentSessionId(nextActive.id);
+        applySessionParams(nextActive);
+      }
+      return nextSessions;
+    });
   };
 
   // Rename Session
@@ -433,39 +424,8 @@ export default function App() {
     scrollToBottom('smooth');
   }, [currentSession?.messages?.length, isGenerating]);
 
-  // Voice Speech Synthesis Helper
-  const speakText = (text: string) => {
-    if (!synthRef.current || !voiceEnabled) return;
-    
-    // Cancel current speech
-    synthRef.current.cancel();
-
-    // Standard text cleanup (remove markdown markers for cleaner speech synthesis)
-    const cleanText = text
-      .replace(/```[\s\S]*?```/g, '[code snippet omitted]')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/#+\s+/g, '')
-      .replace(/>\s+/g, '');
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // Try to find a nice English voice
-    const voices = synthRef.current.getVoices();
-    const goodVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || 
-                      voices.find(v => v.lang.startsWith('en')) || 
-                      voices[0];
-                      
-    if (goodVoice) {
-      utterance.voice = goodVoice;
-    }
-    
-    utteranceRef.current = utterance;
-    synthRef.current.speak(utterance);
-  };
-
   // Trigger Chat response completion
-  const handleSendMessage = async (textToSend?: string) => {
+  const handleSendMessage = useCallback(async (textToSend?: string, overrideMessages?: Message[]) => {
     const rawPrompt = textToSend !== undefined ? textToSend : inputText;
     if (!rawPrompt.trim() || isGenerating || !currentSession) return;
 
@@ -473,17 +433,17 @@ export default function App() {
       setInputText('');
     }
 
-    // Cancel speech on new message
-    if (synthRef.current) {
-      synthRef.current.cancel();
+    let updatedMessages: Message[];
+    if (overrideMessages !== undefined) {
+      updatedMessages = overrideMessages;
+    } else {
+      const userMsg: Message = { role: 'user', content: rawPrompt.trim() };
+      updatedMessages = [...currentSession.messages, userMsg];
     }
-
-    const userMsg: Message = { role: 'user', content: rawPrompt.trim() };
-    const updatedMessages = [...currentSession.messages, userMsg];
 
     // If first message, rename chat to prompt summary
     let newTitle = currentSession.title;
-    if (currentSession.messages.length === 0) {
+    if (currentSession.messages.length === 0 && overrideMessages === undefined) {
       newTitle = rawPrompt.substring(0, 24) + (rawPrompt.length > 24 ? '...' : '');
     }
 
@@ -523,6 +483,11 @@ export default function App() {
           }
           return s;
         });
+        const now = Date.now();
+        if (now - lastPersistRef.current > 2000) {
+          localStorage.setItem('bandit_chat_sessions', JSON.stringify(next));
+          lastPersistRef.current = now;
+        }
         return next;
       });
       lastUpdate = Date.now();
@@ -564,11 +529,6 @@ export default function App() {
         localStorage.setItem('bandit_chat_sessions', JSON.stringify(next));
         return next;
       });
-
-      // Speak if voice enabled
-      if (voiceEnabled) {
-        speakText(fullText);
-      }
     };
 
     const handleError = (error: Error) => {
@@ -606,7 +566,7 @@ export default function App() {
     );
 
     abortStreamRef.current = abort;
-  };
+  }, [inputText, isGenerating, currentSession, activePreset, customPromptText, selectedModel, temperature, topP, numCtx, updateCurrentSession, currentSessionId, setIsGenerating, setChatSessions, setInputText]);
 
   // Abort generating mid-stream
   const handleStopGenerating = () => {
@@ -628,14 +588,8 @@ export default function App() {
     
     if (msgs.length === 0) return;
 
-    // Set messages to exclude trailing responses
-    updateCurrentSession({ messages: msgs });
-    
-    // Re-send last user message
     const lastUserPrompt = msgs[msgs.length - 1].content;
-    setTimeout(() => {
-      handleSendMessage(lastUserPrompt);
-    }, 100);
+    handleSendMessage(lastUserPrompt, msgs);
   };
 
   // Clear current chat messages
@@ -695,6 +649,19 @@ export default function App() {
       handleSendMessage();
     }
   };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  };
+
+  useEffect(() => {
+    if (inputRef.current && inputText === '') {
+      inputRef.current.style.height = 'auto';
+    }
+  }, [inputText]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-[#07080c] text-slate-100 relative">
@@ -1165,13 +1132,12 @@ export default function App() {
               <textarea
                 ref={inputRef}
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder={isGenerating ? "Bandit is generating a response..." : "Ask Bandit something..."}
                 disabled={isGenerating}
                 rows={1}
                 className="chat-input"
-                style={{ height: 'auto', ...({ fieldSizing: 'content' } as unknown as React.CSSProperties) }}
               />
 
               <div className="flex items-center gap-1.5 shrink-0 px-1 py-1">

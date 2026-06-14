@@ -2,11 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' http://127.0.0.1:11434; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none';">
     <link rel="icon" type="image/png" href="/bandit_avatar.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Bandit AI is a premium retro-cyberpunk 8-bit chatbot running local Large Language Models (LLMs) via Ollama." />
     <title>Bandit - Cybernetic Local LLM Chatbot</title>
-    <script src="/wasm_exec.js"></script>
+    <script src="/wasm_exec.js" crossorigin="anonymous"></script>
   </head>
   <body>
     <div id="root"></div>

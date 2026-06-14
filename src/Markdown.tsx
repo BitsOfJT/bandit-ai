@@ -168,9 +168,25 @@ const TableBlock: React.FC<{ tableRaw: string }> = ({ tableRaw }) => {
 
   // Helper to parse cells
   const parseRow = (line: string) => {
-    // Strip leading/trailing pipes and split by pipes
-    const rawCells = line.replace(/^\||\|$/g, '').split('|');
-    return rawCells.map((c) => c.trim());
+    const stripped = line.replace(/^\||\|$/g, '')
+    const cells: string[] = []
+    let current = ''
+    let escaped = false
+    for (const char of stripped) {
+      if (escaped) {
+        current += char
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === '|') {
+        cells.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    cells.push(current.trim())
+    return cells
   };
 
   const headerCells = parseRow(lines[0]);

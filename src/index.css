@@ -794,17 +794,28 @@
     100% { opacity: 0.31; }
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    body::after {
+      display: none;
+    }
+  }
+
   /* VT323 Typography utilities */
   .font-retro-mono {
     font-family: 'VT323', monospace;
-    font-size: 1.35rem;
+    font-size: 21px;
     letter-spacing: 0.05em;
     line-height: 1.1;
   }
 
   .font-retro-mono-sm {
     font-family: 'VT323', monospace;
-    font-size: 1.15rem;
+    font-size: 18px;
     letter-spacing: 0.04em;
     line-height: 1.1;
   }

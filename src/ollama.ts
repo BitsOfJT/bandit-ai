@@ -148,6 +148,7 @@ export async function chatStream(
           }
           if (parsed.done) {
             onDone(accumulatedText);
+            active = false;
           }
         } catch (e) {
           console.warn('Failed to flush parse line:', buffer, e);
@@ -260,6 +261,7 @@ export async function pullModelStream(
           onProgress(parsed);
           if (parsed.status === 'success') {
             onDone();
+            active = false;
           }
         } catch (e) {
           console.warn('Failed to flush parse line:', buffer, e);

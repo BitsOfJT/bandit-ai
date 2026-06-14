@@ -2,9 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -19,6 +23,16 @@ var (
 	currentSession   *Session
 	messages         []Message
 )
+
+var modelNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_:./-]+$`)
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
 
 func clearScreen() {
 	fmt.Print("\x1b[H\x1b[2J")
@@ -113,7 +127,9 @@ func saveCurrentSession() {
 	currentSession.TopP = topP
 	currentSession.NumCtx = numCtx
 
-	_ = saveSession(currentSession)
+	if err := saveSession(currentSession); err != nil {
+		fmt.Fprintf(os.Stderr, "\n%sWARNING:%s Failed to save session: %s\n\n", CRed+CBright, CReset, err)
+	}
 }
 
 func startNewSession() {
@@ -121,7 +137,7 @@ func startNewSession() {
 		saveCurrentSession()
 	}
 
-	currentSessionID := fmt.Sprintf("chat-%d", time.Now().UnixNano()/int64(time.Millisecond))
+	currentSessionID := fmt.Sprintf("chat-%d-%s", time.Now().UnixNano()/int64(time.Millisecond), randomHex(4))
 	messages = []Message{}
 
 	sysPrompt := ""
@@ -222,7 +238,7 @@ func handleLoadCommand(arg string) {
 		targetSessionID = sessions[index-1].ID
 	} else {
 		for _, s := range sessions {
-			if s.ID == arg || strings.Contains(s.ID, arg) {
+			if s.ID == arg {
 				targetSessionID = s.ID
 				break
 			}
@@ -310,7 +326,7 @@ func main() {
 		fmt.Println("\n=== How to install and launch Ollama ===")
 		fmt.Printf("1. Download Ollama from: %shttps://ollama.com%s\n", CCyan, CReset)
 		fmt.Println("2. Install and launch the application.")
-		fmt.Println("3. Once Ollama is running in your menu bar, rerun this tool!\n")
+		fmt.Println("3. Once Ollama is running in your menu bar, rerun this tool!")
 	} else if len(availableModels) == 0 {
 		fmt.Printf("%sWARNING:%s No AI models found in your local Ollama registry.\n", CRed+CBright, CReset)
 		fmt.Println("\n=== How to download a model to use with Bandit ===")
@@ -318,7 +334,7 @@ func main() {
 		fmt.Printf("   %s/pull gemma4:e2b%s  (downloads our recommended 1.6B model)\n", CGreen, CReset)
 		fmt.Println("2. Alternatively, run this command in a separate terminal window:")
 		fmt.Printf("   %sollama run gemma4:e2b%s\n", CCyan, CReset)
-		fmt.Println("3. Once the download begins or completes, you can chat with Bandit!\n")
+		fmt.Println("3. Once the download begins or completes, you can chat with Bandit!")
 	} else {
 		found := false
 		for _, m := range availableModels {
@@ -431,9 +447,20 @@ func main() {
 					target := strings.ToLower(arg)
 					if _, exists := PersonalityPresets[target]; exists {
 						activePreset = target
-						fmt.Printf("\n%sBandit:%s Persona swapped to %s%s%s!\n", CGreen, CReset, CYellow, PersonalityPresets[target].Name, CReset)
-						startNewSession()
-						fmt.Printf("%sBandit:%s Started new session with the new persona instructions.\n\n", CGreen, CReset)
+						sysPrompt := PersonalityPresets[target].Prompt
+						foundSystem := false
+						for i, m := range messages {
+							if m.Role == "system" {
+								messages[i].Content = sysPrompt
+								foundSystem = true
+								break
+							}
+						}
+						if !foundSystem && sysPrompt != "" {
+							messages = append([]Message{{Role: "system", Content: sysPrompt}}, messages...)
+						}
+						saveCurrentSession()
+						fmt.Printf("\n%sBandit:%s Persona swapped to %s%s%s!\n\n", CGreen, CReset, CYellow, PersonalityPresets[target].Name, CReset)
 					} else {
 						fmt.Printf("\n%sUnknown persona: %s. Type /persona for options.%s\n\n", CRed, target, CReset)
 					}
@@ -445,9 +472,25 @@ func main() {
 				if arg == "" {
 					fmt.Printf("\nActive model: %s%s%s\n\n", CYellow, currentModel, CReset)
 				} else {
+					if !modelNameRegex.MatchString(arg) {
+						fmt.Printf("\n%sInvalid model name. Use only letters, numbers, :, _, ., /, -%s\n\n", CRed, CReset)
+						continue
+					}
+					availableModels, _ := verifyOllama()
+					found := false
+					for _, m := range availableModels {
+						if m == arg {
+							found = true
+							break
+						}
+					}
 					currentModel = arg
 					saveCurrentSession()
-					fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n\n", CGreen, CReset, CYellow, currentModel, CReset)
+					if !found {
+						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s (not found in Ollama — may fail on next chat)\n\n", CGreen, CReset, CYellow, currentModel, CReset)
+					} else {
+						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n\n", CGreen, CReset, CYellow, currentModel, CReset)
+					}
 				}
 				continue
 			}
@@ -456,7 +499,7 @@ func main() {
 				if arg == "" {
 					fmt.Printf("\n%sUsage: /pull <model_name>%s\n\n", CRed, CReset)
 				} else {
-					err := pullModel(arg)
+					err := pullModel(context.Background(), arg)
 					if err != nil {
 						fmt.Printf("\n%sError pulling model: %s%s\n\n", CRed, err, CReset)
 					}
@@ -528,7 +571,7 @@ func main() {
 		saveCurrentSession()
 
 		formatter := NewMarkdownFormatter()
-		accumulated, err := chatStream(currentSession, formatter)
+		accumulated, err := chatStream(context.Background(), currentSession, formatter)
 		if err != nil {
 			fmt.Printf("\n\n%s%sError:%s Failed to scan Ollama. Is it running? (%s)\n\n", CRed, CBright, CReset, err)
 			messages = messages[:len(messages)-1]

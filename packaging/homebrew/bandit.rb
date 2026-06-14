@@ -10,12 +10,12 @@
 class Bandit < Formula
   desc "Local-first AI chatbot CLI with a retro cyberpunk aesthetic"
   homepage "https://github.com/BitsOfJT/bandit-ai"
-  version "0.2.0"
+  version "0.2.1"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/BitsOfJT/bandit-ai/releases/download/v0.2.0/bandit"
-      sha256 "0c1a633378ca469590f36bc82cdc0b57503266dde3cd8d855dad63b612e67cfb"
+      url "https://github.com/BitsOfJT/bandit-ai/releases/download/v0.2.1/bandit"
+      sha256 "b3d22ac4c2dd4eb348d02ac19e85c74558cb92a7025d5ec6dd01e6e1e95722ff"
     else
       odie "Bandit only ships an Apple Silicon binary. Build from source: #{homepage}#build-from-source"
     end
@@ -23,8 +23,8 @@ class Bandit < Formula
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/BitsOfJT/bandit-ai/releases/download/v0.2.0/bandit-linux"
-      sha256 "0d3d79f884569ff46f6429f8a750b34cd7de1291a967ea35875e99dd886ce427"
+      url "https://github.com/BitsOfJT/bandit-ai/releases/download/v0.2.1/bandit-linux"
+      sha256 "e314c4ed838f4f2a1543bec9ecae15cddd7dc750fc5179c058700b99a312fe48"
     else
       odie "Bandit only ships an amd64 Linux binary. Build from source: #{homepage}#build-from-source"
     end

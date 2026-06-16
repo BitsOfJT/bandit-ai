@@ -610,7 +610,14 @@ func main() {
 						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n%sNote:%s not installed locally — run %s/pull %s%s first, or %s/cloud%s to browse cloud models.\n\n",
 							CGreen, CReset, CYellow, currentModel, CReset, CYellow, CReset, CMagenta, currentModel, CReset, CMagenta, CReset)
 					} else {
-						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n\n", CGreen, CReset, CYellow, currentModel, CReset)
+						fmt.Printf("\n%sBandit:%s Active LLM swapped to: %s%s%s\n", CGreen, CReset, CYellow, currentModel, CReset)
+						// Warm the model now so the first chat doesn't pay the cold-load cost.
+						fmt.Printf("%sWarming up %s%s%s…%s ", CGray, CYellow, currentModel, CGray, CReset)
+						if err := preloadModel(currentModel); err != nil {
+							fmt.Printf("%sskipped%s\n\n", CGray, CReset)
+						} else {
+							fmt.Printf("%sready%s\n\n", CGreen, CReset)
+						}
 					}
 				}
 				continue

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import App from '../App'
+import { BANDIT_SOUL } from '../persona'
 
 // Mock ollama module so tests don't need actual Ollama running
 vi.mock('../ollama', () => ({
@@ -18,7 +19,8 @@ const PERSONALITY_PRESETS = {
   },
   hacker: {
     name: 'Cynical Cyber-Raccoon',
-    prompt: 'You are Bandit, a sarcastic cyber-raccoon AI hacker. You love terminal commands, shiny electronic parts, hacking code, and eating digital garbage. You use raccoon metaphors often (referencing garbage cans, washing food, shiny objects, nocturnal adventures) and have a cynical, witty, but ultimately helpful hacker personality.',
+    // The default hacker persona is now the full bandit-soul.md doc, embedded verbatim.
+    prompt: BANDIT_SOUL,
     description: 'Witty hacker with raccoon energy',
   },
   philosopher: {

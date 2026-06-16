@@ -353,6 +353,57 @@ func TestChatStream_SurfacesOllamaErrorBody(t *testing.T) {
 	}
 }
 
+// Test that preloadModel sends the correct warm-up request body
+func TestPreloadModel_SendsCorrectRequestBody(t *testing.T) {
+	var reqBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/generate" && r.Method == http.MethodPost {
+			bodyBytes, _ := io.ReadAll(r.Body)
+			json.Unmarshal(bodyBytes, &reqBody)
+			fmt.Fprintln(w, `{"done":true}`)
+		}
+	}))
+	defer server.Close()
+
+	oldHost := OllamaHost
+	OllamaHost = server.URL
+	defer func() { OllamaHost = oldHost }()
+
+	if err := preloadModel("test-model"); err != nil {
+		t.Fatalf("preloadModel returned error: %v", err)
+	}
+
+	if reqBody["model"] != "test-model" {
+		t.Errorf("expected model 'test-model', got %q", reqBody["model"])
+	}
+	if reqBody["prompt"] != "" {
+		t.Errorf("expected empty prompt, got %q", reqBody["prompt"])
+	}
+	if reqBody["keep_alive"] != "10m" {
+		t.Errorf("expected keep_alive '10m', got %q", reqBody["keep_alive"])
+	}
+}
+
+// Test that preloadModel surfaces non-200 status codes as errors
+func TestPreloadModel_HttpError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	oldHost := OllamaHost
+	OllamaHost = server.URL
+	defer func() { OllamaHost = oldHost }()
+
+	err := preloadModel("test-model")
+	if err == nil {
+		t.Fatal("expected error for 404 status, got nil")
+	}
+	if !strings.Contains(err.Error(), "404") {
+		t.Errorf("expected error to mention 404, got: %v", err)
+	}
+}
+
 func TestFetchModels_DecodesMetadata(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"models":[{"name":"gemma4:e2b","size":1610000000,"details":{"parameter_size":"1.6B"},"capabilities":["completion","tools"]},{"name":"nomic-embed-text","size":270000000,"capabilities":["embedding"]}]}`))

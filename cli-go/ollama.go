@@ -128,7 +128,7 @@ func (m ModelInfo) hasChatCapability() bool {
 
 func pullModel(ctx context.Context, modelName string) error {
 	fmt.Printf("\n\x1b[32mBandit:\x1b[0m Connecting to Ollama to pull \x1b[33m%s\x1b[0m...\n", modelName)
-	
+
 	reqBody, err := json.Marshal(PullRequest{Name: modelName, Stream: true})
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func pullModel(ctx context.Context, modelName string) error {
 			percent := float64(p.Completed) / float64(p.Total) * 100
 			barLength := 30
 			filledLength := int(float64(p.Completed) / float64(p.Total) * float64(barLength))
-			
+
 			bar := ""
 			for i := 0; i < filledLength; i++ {
 				bar += "="
@@ -193,6 +193,34 @@ func pullModel(ctx context.Context, modelName string) error {
 		}
 	}
 	fmt.Printf("\n\n\x1b[32mBandit:\x1b[0m Model \x1b[33m%s\x1b[0m successfully installed! 🦝💾\n\n", modelName)
+	return nil
+}
+
+// preloadModel warms a model so the first real chat doesn't pay the cold-load
+// cost. Ollama loads a model into memory (without generating) when /api/generate
+// is sent an empty prompt; keep_alive holds it resident. Best-effort: any failure
+// is ignored — the worst case is the old behavior (lazy load on first chat).
+func preloadModel(model string) error {
+	if model == "" {
+		return nil
+	}
+	reqBody, err := json.Marshal(map[string]any{
+		"model":      model,
+		"prompt":     "",
+		"keep_alive": "10m",
+	})
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Post(OllamaHost+"/api/generate", "application/json", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ollamaError(resp)
+	}
 	return nil
 }
 

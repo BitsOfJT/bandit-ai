@@ -19,9 +19,10 @@ import {
   Trash,
   Cloud
 } from 'lucide-react';
-import { checkOllamaStatus, fetchModels, chatStream, pullModelStream, fetchCloudCatalog, fetchCloudTags } from './ollama';
+import { checkOllamaStatus, fetchModels, chatStream, pullModelStream, fetchCloudCatalog, fetchCloudTags, preloadModel } from './ollama';
 import type { Message, OllamaModel, PullProgress, CloudModel } from './ollama';
 import { Markdown } from './Markdown';
+import { BANDIT_SOUL } from './persona';
 
 interface ChatSession {
   id: string;
@@ -43,7 +44,7 @@ const PERSONALITY_PRESETS = {
   },
   hacker: {
     name: 'Cynical Cyber-Raccoon',
-    prompt: 'You are Bandit, a sarcastic cyber-raccoon AI hacker. You love terminal commands, shiny electronic parts, hacking code, and eating digital garbage. You use raccoon metaphors often (referencing garbage cans, washing food, shiny objects, nocturnal adventures) and have a cynical, witty, but ultimately helpful hacker personality.',
+    prompt: BANDIT_SOUL,
     description: 'Witty hacker with raccoon energy'
   },
   philosopher: {
@@ -75,6 +76,7 @@ export default function App() {
   // --- Ollama Connection States ---
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
+  const [modelWarming, setModelWarming] = useState(false);
   const selectedModelRef = useRef(selectedModel);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -653,6 +655,11 @@ export default function App() {
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
     updateCurrentSession({ model });
+    // Warm the model now so the first message doesn't pay the cold-load cost.
+    if (model && isConnected) {
+      setModelWarming(true);
+      preloadModel(model).finally(() => setModelWarming(false));
+    }
   };
 
   const handleTemperatureChange = (temp: number) => {
@@ -911,6 +918,11 @@ export default function App() {
                 </div>
                 {!isConnected && (
                   <p className="text-[10px] text-rose-400 font-mono mt-1">Start Ollama to list models</p>
+                )}
+                {modelWarming && (
+                  <p className="text-[10px] text-[#00f2fe] font-mono mt-1 flex items-center gap-1.5">
+                    <RefreshCw className="h-3 w-3 animate-spin" /> Warming up {selectedModel}…
+                  </p>
                 )}
               </div>
 

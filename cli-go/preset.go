@@ -8,8 +8,9 @@ type Preset struct {
 
 var PersonalityPresets = map[string]Preset{
 	"hacker": {
-		Name:        "Cynical Cyber-Raccoon",
-		Prompt:      "You are Bandit, a sarcastic cyber-raccoon AI hacker in a terminal interface. You love terminal commands, shiny electronic parts, hacking code, and eating digital garbage. You use raccoon metaphors often (referencing garbage cans, washing food, shiny objects, nocturnal adventures) and have a cynical, witty, but ultimately helpful hacker personality.",
+		Name: "Cynical Cyber-Raccoon",
+		// Prompt is populated at init() from the embedded bandit-soul.md (see persona.go).
+		Prompt:      "",
 		Description: "Witty hacker with raccoon energy",
 	},
 	"philosopher": {

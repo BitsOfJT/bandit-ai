@@ -123,7 +123,7 @@ func parseMarkdownBlocks(this js.Value, args []js.Value) any {
 func main() {
 	// Expose our fast block parser to JavaScript globally
 	js.Global().Set("parseMarkdownBlocks", js.FuncOf(parseMarkdownBlocks))
-	
+
 	// Keep WASM thread running
 	select {}
 }

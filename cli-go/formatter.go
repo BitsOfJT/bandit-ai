@@ -179,7 +179,7 @@ func ColorizeMarkdown(text string) string {
 			result = append(result, "\n"+strings.Join(formatted, "\n")+"\n")
 		} else {
 			formatted := part
-			
+
 			reBold := regexp.MustCompile(`\*\*(.*?)\*\*`)
 			formatted = reBold.ReplaceAllString(formatted, CBright+"$1"+CReset+CCyan)
 

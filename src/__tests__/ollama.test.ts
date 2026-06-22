@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach, afterAll } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { checkOllamaStatus, fetchModels, chatStream, pullModelStream, parseCloudCatalog, parseCloudTags } from '../ollama'
+import { checkOllamaStatus, fetchModels, chatStream, pullModelStream, preloadModel, parseCloudCatalog, parseCloudTags } from '../ollama'
 import type { PullProgress } from '../ollama'
 
 // Helper to build an NDJSON ReadableStream from an array of JSON objects
@@ -351,6 +351,23 @@ describe('chatStream error surfacing', () => {
 
     expect(onError).toHaveBeenCalledTimes(1)
     expect(onError.mock.calls[0][0].message).toContain('not found, try pulling it first')
+  })
+})
+
+describe('preloadModel', () => {
+  it('posts to /api/generate with the expected warm-up body', async () => {
+    let capturedBody: Record<string, unknown> | null = null
+
+    server.use(
+      http.post('/api/generate', async ({ request }) => {
+        capturedBody = await request.json() as Record<string, unknown>
+        return HttpResponse.json({ done: true })
+      })
+    )
+
+    await preloadModel('llama3')
+
+    expect(capturedBody).toEqual({ model: 'llama3', prompt: '', keep_alive: '10m' })
   })
 })
 

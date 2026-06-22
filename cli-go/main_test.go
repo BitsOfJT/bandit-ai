@@ -837,7 +837,7 @@ func TestFormatModelSize(t *testing.T) {
 		want string
 	}{
 		{0, ""},
-		{500, ""},                     // sub-MB (e.g. cloud manifest) → hidden
+		{500, ""}, // sub-MB (e.g. cloud manifest) → hidden
 		{5 * 1024 * 1024, "5 MB"},
 		{2 * 1024 * 1024 * 1024, "2.0 GB"},
 	}

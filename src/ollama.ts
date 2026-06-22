@@ -71,6 +71,25 @@ export async function fetchModels(): Promise<OllamaModel[]> {
 }
 
 /**
+ * Warms up a model so the first real chat doesn't pay the cold-load cost.
+ * Ollama loads a model into memory (without generating) when sent to
+ * /api/generate with an empty prompt; keep_alive holds it resident. Best-effort:
+ * any failure is swallowed — the worst case is the old behavior (lazy load).
+ */
+export async function preloadModel(model: string): Promise<void> {
+  if (!model) return;
+  try {
+    await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: '', keep_alive: '10m' }),
+    });
+  } catch {
+    /* Ollama unreachable or model missing — first chat will surface the error */
+  }
+}
+
+/**
  * Streams a chat completion response from the local Ollama instance.
  */
 export async function chatStream(

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Launch Bandit without depending on editable .pth discovery.
+# Works even when macOS marks .venv/*.pth as UF_HIDDEN.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+if [[ -x "$ROOT/venv/bin/python" ]]; then
+  exec "$ROOT/venv/bin/python" -m bandit_cli "$@"
+fi
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  exec "$ROOT/.venv/bin/python" -m bandit_cli "$@"
+fi
+exec uv run --directory "$ROOT" python -m bandit_cli "$@"

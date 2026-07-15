@@ -1,135 +1,123 @@
-# Bandit AI
+# Bandit AI (CLI)
 
-A local-first AI chatbot with a retro cyberpunk aesthetic. Bandit runs entirely on your machine via [Ollama](https://ollama.com) — no cloud, no telemetry, no data leaving your hard drive.
+A local-first, cyberpunk raccoon chatbot for your terminal.
 
-## Features
+**Default backend:** OpenAI-compatible API (ready for free access when your key works)  
+**Fallback:** [Ollama](https://ollama.com) on your machine
 
-- **Two interfaces**: Interactive terminal CLI and browser-based web UI
-- **Three AI personas**: Cynical Cyber-Raccoon, Garbage Philosopher, and Smart Assistant
-- **Local-first**: All models run locally through Ollama. Chat history stays on your machine.
-- **Streaming responses**: Real-time token streaming with ANSI-colored markdown (CLI) and rendered markdown (web)
-- **Session management**: Save, load, rename, and switch between chat sessions
-- **Model management**: Pull models, switch models, and adjust temperature/top_p/context window from within the app
+> The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) (shelved, not deleted).
 
-## Prerequisites
+---
 
-1. [Install Ollama](https://ollama.com) for your operating system
-2. Start the Ollama service (it runs in your menu bar / system tray)
-3. Pull at least one model:
-   ```bash
-   ollama pull gemma4:e2b
-   ```
+## Quick start
 
-## Quick Start
+### 1. Install
 
-> Bandit needs [Ollama](https://ollama.com) running first — see [Prerequisites](#prerequisites) above.
-
-### Install the CLI (recommended)
-
-**curl** (macOS & Linux):
-```bash
-curl -fsSL https://raw.githubusercontent.com/BitsOfJT/bandit-ai/main/install.sh | sh
-bandit
-```
-
-**Homebrew** (macOS & Linux):
-```bash
-brew install BitsOfJT/bandit/bandit
-bandit
-```
-
-Both pull the matching binary from the latest [release](https://github.com/BitsOfJT/bandit-ai/releases) and put `bandit` on your `PATH`. Because they download over the command line, macOS does **not** quarantine the binary — it runs without a Gatekeeper prompt.
-
-### Manual download
-
-Grab a binary from the [Releases](https://github.com/BitsOfJT/bandit-ai/releases) page:
-
-| Platform | Binary |
-|----------|--------|
-| macOS (Apple Silicon) | `bandit` |
-| Linux (amd64) | `bandit-linux` |
-| Windows (amd64) | `bandit.exe` |
-
-The binaries are **unsigned**. A browser download gets quarantined by macOS Gatekeeper and refuses to run — it can look like nothing happens. Clear the quarantine flag, then run it:
+Requires **Python 3.11+** and [uv](https://github.com/astral-sh/uv) (recommended):
 
 ```bash
-chmod +x bandit
-xattr -d com.apple.quarantine bandit   # macOS only: lift Gatekeeper quarantine
-./bandit
+# from the repo root
+# macOS Desktop/Documents: use a non-dot venv so editable .pth files
+# are not marked UF_HIDDEN (that breaks `uv run bandit`)
+UV_PROJECT_ENVIRONMENT=venv uv sync --extra dev
+ln -sfn venv .venv
 ```
 
-> On Windows, SmartScreen may show "Windows protected your PC" — click **More info → Run anyway**.
-
-### Build from source
+Or with pip:
 
 ```bash
-git clone https://github.com/BitsOfJT/bandit-ai.git
-cd bandit-ai
-npm install
-
-# CLI
-npm run cli
-
-# Web UI (dev server at http://localhost:5173)
-npm run dev
+python -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
 ```
 
-> **Production web UI**: Run `npm run build` to produce static files in `dist/`. Serve them with a reverse proxy (nginx, Caddy, etc.) that forwards `/api/*` to `http://127.0.0.1:11434`. To enable cloud-model browsing in the web UI, also forward `/ollama-www/*` to `https://ollama.com/*` (the Vite dev server does this automatically).
-
-> **Cloud models**: Both interfaces can run [Ollama cloud models](https://ollama.com/search?c=cloud) (e.g. `gpt-oss:120b-cloud`). Run `ollama signin` first, then pull/select the model. In the CLI use `/cloud` to browse; in the web UI click the **☁ CLOUD** button next to the model selector.
-
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show command reference |
-| `/persona <name>` | Switch persona: `hacker`, `philosopher`, or `standard` |
-| `/models` | List installed models (numbered, active marked, with sizes) |
-| `/model <n\|name>` | Switch the active model by list number or name (e.g. `/model 2`) |
-| `/cloud [name]` | Browse Ollama cloud models; `/cloud <name>` shows its runnable tags |
-| `/pull <name>` | Download a model from the Ollama registry |
-| `/sessions` | List saved chat sessions |
-| `/load <idx>` | Resume a session by index number |
-| `/new` | Save current session and start a new one |
-| `/clear` | Clear chat history in the current session |
-| `/temp <val>` | Set temperature (0.0–2.0, default 0.7) |
-| `/top_p <val>` | Set top_p sampling (0.0–1.0, default 0.9) |
-| `/ctx <val>` | Set context window in tokens (default 2048) |
-| `/exit` | Exit the CLI |
-
-## Personas
-
-| Persona | Alias | Behavior |
-|---------|-------|----------|
-| Cynical Cyber-Raccoon | `hacker` | Sarcastic, technically competent, uses raccoon metaphors |
-| Garbage Philosopher | `philosopher` | Existential, frames wisdom around cosmic trash |
-| Smart Assistant | `standard` | Polite, structured, and helpful |
-
-## Architecture
-
-| Component | Language | Directory |
-|-----------|----------|-----------|
-| CLI | Go | `cli-go/` |
-| Web UI | TypeScript + React + Vite | `src/` |
-| Markdown parser (WASM) | Go → WASM | `cli-go/wasm/` |
-
-Session data is stored at `~/.bandit_ai/sessions/` (CLI) and in `localStorage` (web UI).
-
-## Development
+### 2. Configure OpenAI (default provider)
 
 ```bash
-npm run dev          # Vite dev server
-npm run build        # TypeScript typecheck + production build
-npm run lint         # ESLint
-npm test             # Vitest (TypeScript tests)
-npm run test:watch   # Vitest in watch mode
-npm run build:cli    # Rebuild the Go CLI binary
-npm run build:wasm   # Rebuild the WASM markdown parser
-cd cli-go && go test ./... -v   # Go tests
+export OPENAI_API_KEY="sk-..."
+# optional overrides:
+# export OPENAI_BASE_URL="https://api.openai.com/v1"
+# export OPENAI_MODEL="gpt-4o-mini"
 ```
 
-## Tech Stack
+If OpenAI isn't ready (no key, billing, free tier not available), Bandit
+**automatically falls back to Ollama**.
 
-- **CLI**: Go, ANSI escape sequences, `crypto/rand`
-- **Web UI**: React 19, TypeScript, Vite, Lucide icons
-- **Engine**: Ollama HTTP API (`http://127.0.0.1:11434`)
+### 3. (Optional) Run Ollama for the fallback
+
+1. Install from https://ollama.com and start it  
+2. Pull a model: `ollama pull gemma4:e2b`
+
+### 4. Launch
+
+```bash
+uv run bandit
+# or: ./bandit
+# or: uv run python -m bandit_cli
+```
+
+If `uv run bandit` raises `ModuleNotFoundError: No module named 'bandit_cli'`,
+your `.venv` is a real hidden dir again — recreate with the `venv` + symlink
+steps above, or run `./bandit`.
+
+---
+
+## Commands
+
+| Command | What it does |
+|---------|----------------|
+| `/help` | Show all commands |
+| `/provider` | Show OpenAI / Ollama status |
+| `/provider openai` | Force OpenAI (default when available) |
+| `/provider ollama` | Force local Ollama |
+| `/models` / `/model` | List / switch models |
+| `/persona` | hacker · philosopher · standard |
+| `/sessions` `/load` `/new` `/clear` | Session management |
+| `/pull <name>` | Download a model via Ollama |
+| `/cloud` | Browse Ollama cloud catalog |
+| `/temp` `/top_p` `/ctx` | Generation knobs |
+| `/exit` | Quit |
+
+---
+
+## How the code is organized (learn here)
+
+```
+bandit_cli/
+  __main__.py              # REPL + slash commands  ← start reading here
+  config.py                # defaults + env vars
+  session.py               # Message/Session + JSON files
+  personas.py              # system prompts
+  render.py                # Rich banner + streaming markdown
+  cloud.py                 # ollama.com HTML catalog scrape
+  providers/
+    base.py                # shared Provider interface
+    openai_provider.py     # DEFAULT backend
+    ollama.py              # FALLBACK backend
+    router.py              # "try OpenAI, else Ollama"
+  data/bandit-soul.md      # full persona reference
+```
+
+Every module has teaching-oriented comments at the top.
+
+Sessions are stored at `~/.bandit_ai/sessions/*.json` (fresh format — not compatible with the old Go CLI files).
+
+---
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+---
+
+## Why OpenAI is default even without a free tier today
+
+OpenAI's free chat API access is inconsistent. Bandit still **defaults to OpenAI** so that when free models/quota become available for your key, nothing else needs wiring. Until then, Ollama keeps you scavenging locally.
+
+---
+
+## Legacy
+
+See [`legacy-web/`](./legacy-web/) for the previous TypeScript/React UI and Go CLI.

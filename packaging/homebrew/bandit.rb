@@ -23,9 +23,10 @@ class Bandit < Formula
     venv = virtualenv_create(libexec, "python3.13")
     # Homebrew's venv.pip_install adds --no-deps (resources-only). We want a
     # normal pip resolve from PyPI for this app's runtime dependencies.
+    # --python must come before the pip subcommand name.
     system Formula["python@3.13"].opt_libexec/"bin/python", "-Im", "pip",
-           "install", "--python=#{venv.root}/bin/python",
-           "--upgrade", buildpath.to_s
+           "--python=#{venv.root}/bin/python",
+           "install", "--upgrade", buildpath.to_s
     bin.install_symlink libexec/"bin/bandit"
   end
 

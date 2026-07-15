@@ -1,54 +1,47 @@
-# Homebrew formula for Bandit AI.
+# Homebrew formula for Bandit AI (Python CLI).
 #
-# This file belongs in a SEPARATE tap repo named `homebrew-bandit`
-# (github.com/BitsOfJT/homebrew-bandit), at Formula/bandit.rb. Once it is
-# published there, users install with:
+# Lives in the separate tap repo `homebrew-bandit`
+# (github.com/BitsOfJT/homebrew-bandit) as Formula/bandit.rb.
 #
 #   brew install BitsOfJT/bandit/bandit
 #
-# Regenerate on each release with packaging/homebrew/update-formula.sh.
+# After tagging a release, refresh sha256 with:
+#   ./packaging/homebrew/update-formula.sh v0.4.0
 class Bandit < Formula
-  desc "Local-first AI chatbot CLI with a retro cyberpunk aesthetic"
+  include Language::Python::Virtualenv
+
+  desc "Local-first cyberpunk raccoon chatbot CLI"
   homepage "https://github.com/BitsOfJT/bandit-ai"
-  version "0.2.1"
+  url "https://github.com/BitsOfJT/bandit-ai/archive/refs/tags/v0.4.0.tar.gz"
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  license "MIT"
+  head "https://github.com/BitsOfJT/bandit-ai.git", branch: "main"
 
-  on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/BitsOfJT/bandit-ai/releases/download/v0.2.1/bandit"
-      sha256 "b3d22ac4c2dd4eb348d02ac19e85c74558cb92a7025d5ec6dd01e6e1e95722ff"
-    else
-      odie "Bandit only ships an Apple Silicon binary. Build from source: #{homepage}#build-from-source"
-    end
-  end
-
-  on_linux do
-    if Hardware::CPU.intel?
-      url "https://github.com/BitsOfJT/bandit-ai/releases/download/v0.2.1/bandit-linux"
-      sha256 "e314c4ed838f4f2a1543bec9ecae15cddd7dc750fc5179c058700b99a312fe48"
-    else
-      odie "Bandit only ships an amd64 Linux binary. Build from source: #{homepage}#build-from-source"
-    end
-  end
+  depends_on "python@3.13"
 
   def install
-    if OS.mac?
-      bin.install "bandit"
-    else
-      bin.install "bandit-linux" => "bandit"
-    end
+    virtualenv_install_with_resources
   end
 
   def caveats
-    <<~CAVEATS
-      Bandit needs Ollama running locally before it can chat:
+    <<~EOS
+      Bandit defaults to local Ollama:
         https://ollama.com
-
-      Then pull a model, e.g.:
         ollama pull gemma4:e2b
-    CAVEATS
+
+      Optional OpenAI-compatible API:
+        export OPENAI_API_KEY=...
+        then run: bandit
+        and switch with /provider openai
+
+      Note: Homebrew core ships an unrelated formula also named "bandit"
+      (a Python security linter). Always install this CLI with:
+        brew install BitsOfJT/bandit/bandit
+    EOS
   end
 
   test do
-    assert_match "Bandit", pipe_output("#{bin}/bandit", "/exit\n")
+    assert_match(/Bandit|Ollama|READY FOR SCAVENGING|Active:/,
+                 pipe_output("#{bin}/bandit", "/exit\n"))
   end
 end

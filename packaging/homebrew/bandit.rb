@@ -20,9 +20,12 @@ class Bandit < Formula
   depends_on "python@3.13"
 
   def install
-    # pip_install resolves runtime deps from PyPI into the formula venv.
     venv = virtualenv_create(libexec, "python3.13")
-    venv.pip_install buildpath
+    # Homebrew's venv.pip_install adds --no-deps (resources-only). We want a
+    # normal pip resolve from PyPI for this app's runtime dependencies.
+    system Formula["python@3.13"].opt_libexec/"bin/python", "-Im", "pip",
+           "install", "--python=#{venv.root}/bin/python",
+           "--upgrade", buildpath.to_s
     bin.install_symlink libexec/"bin/bandit"
   end
 

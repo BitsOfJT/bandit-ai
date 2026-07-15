@@ -14,23 +14,23 @@ class _FakeProvider:
         return self._ok, self._reason
 
 
-def test_router_prefers_openai_when_available(monkeypatch):
+def test_router_prefers_ollama_when_available():
     router = ProviderRouter()
     router.openai = _FakeProvider("openai", True)  # type: ignore[assignment]
     router.ollama = _FakeProvider("ollama", True)  # type: ignore[assignment]
     config = RuntimeConfig()
     provider = router.resolve_startup(config)
-    assert provider.name == "openai"
-    assert config.provider == "openai"
-    assert any("OpenAI API reachable" in n for n in router.startup_notes)
-
-
-def test_router_falls_back_to_ollama(monkeypatch):
-    router = ProviderRouter()
-    router.openai = _FakeProvider("openai", False, "no key")  # type: ignore[assignment]
-    router.ollama = _FakeProvider("ollama", True)  # type: ignore[assignment]
-    config = RuntimeConfig()
-    provider = router.resolve_startup(config)
     assert provider.name == "ollama"
     assert config.provider == "ollama"
-    assert any("Falling back to Ollama" in n for n in router.startup_notes)
+    assert any("default provider" in n for n in router.startup_notes)
+
+
+def test_router_falls_back_to_openai():
+    router = ProviderRouter()
+    router.openai = _FakeProvider("openai", True)  # type: ignore[assignment]
+    router.ollama = _FakeProvider("ollama", False, "not running")  # type: ignore[assignment]
+    config = RuntimeConfig()
+    provider = router.resolve_startup(config)
+    assert provider.name == "openai"
+    assert config.provider == "openai"
+    assert any("Trying OpenAI" in n for n in router.startup_notes)

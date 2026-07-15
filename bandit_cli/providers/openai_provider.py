@@ -1,4 +1,4 @@
-"""OpenAI-compatible provider — Bandit's DEFAULT backend.
+"""OpenAI-compatible provider — optional cloud / compatible-API backend.
 
 Learning note
 -------------
@@ -6,9 +6,8 @@ The official `openai` package talks to api.openai.com, but also works with
 any server that speaks the same HTTP shape if you change `base_url`
 (OpenRouter, Groq, Azure, local vLLM, etc.).
 
-Free access reality (mid-2026): OpenAI does not guarantee a permanent free
-chat tier. Bandit still defaults here so the day your key / free quota works,
-you're already connected. Until then the router falls back to Ollama.
+Bandit's default is local Ollama; switch here with `/provider openai` when
+you have a key (or point OPENAI_BASE_URL at another compatible host).
 """
 
 from __future__ import annotations

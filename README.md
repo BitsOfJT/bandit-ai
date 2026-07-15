@@ -2,63 +2,72 @@
 
 A local-first, cyberpunk raccoon chatbot for your terminal.
 
-**Default backend:** OpenAI-compatible API (ready for free access when your key works)  
-**Fallback:** [Ollama](https://ollama.com) on your machine
+**Default backend:** [Ollama](https://ollama.com) on your machine  
+**Optional:** OpenAI-compatible API (`/provider openai` when you have a key)
 
 > The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) (shelved, not deleted).
 
 ---
 
-## Quick start
+## Install
 
-### 1. Install
-
-Requires **Python 3.11+** and [uv](https://github.com/astral-sh/uv) (recommended):
+### curl (macOS & Linux)
 
 ```bash
-# from the repo root
-# macOS Desktop/Documents: use a non-dot venv so editable .pth files
-# are not marked UF_HIDDEN (that breaks `uv run bandit`)
+curl -fsSL https://raw.githubusercontent.com/BitsOfJT/bandit-ai/main/install.sh | sh
+bandit
+```
+
+Uses [uv](https://github.com/astral-sh/uv) when available (installs it if missing), otherwise pipx. Needs **Python 3.11+**.
+
+Pin a version:
+
+```bash
+BANDIT_VERSION=v0.4.0 curl -fsSL https://raw.githubusercontent.com/BitsOfJT/bandit-ai/main/install.sh | sh
+```
+
+### Homebrew (macOS & Linux)
+
+```bash
+brew install BitsOfJT/bandit/bandit
+bandit
+```
+
+> Always use the fully-qualified name. Bare `brew install bandit` is a different Homebrew-core formula (security linter).
+
+### From this repo (developers)
+
+```bash
+# macOS Desktop/Documents: non-dot venv avoids editable .pth + UF_HIDDEN launch bugs
 UV_PROJECT_ENVIRONMENT=venv uv sync --extra dev
 ln -sfn venv .venv
+uv run bandit
 ```
 
-Or with pip:
+---
 
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -e ".[dev]"
-```
+## Quick start
 
-### 2. Configure OpenAI (default provider)
-
-```bash
-export OPENAI_API_KEY="sk-..."
-# optional overrides:
-# export OPENAI_BASE_URL="https://api.openai.com/v1"
-# export OPENAI_MODEL="gpt-4o-mini"
-```
-
-If OpenAI isn't ready (no key, billing, free tier not available), Bandit
-**automatically falls back to Ollama**.
-
-### 3. (Optional) Run Ollama for the fallback
+### 1. Run Ollama (default provider)
 
 1. Install from https://ollama.com and start it  
 2. Pull a model: `ollama pull gemma4:e2b`
 
-### 4. Launch
+### 2. (Optional) Configure OpenAI
 
 ```bash
-uv run bandit
-# or: ./bandit
-# or: uv run python -m bandit_cli
+export OPENAI_API_KEY="sk-..."
+# optional: OPENAI_BASE_URL, OPENAI_MODEL
 ```
 
-If `uv run bandit` raises `ModuleNotFoundError: No module named 'bandit_cli'`,
-your `.venv` is a real hidden dir again — recreate with the `venv` + symlink
-steps above, or run `./bandit`.
+Then `/provider openai` inside the CLI. If Ollama isn’t running and a key is set, Bandit falls back to OpenAI automatically.
+
+### 3. Launch
+
+```bash
+bandit
+# or from a clone: uv run bandit / ./bandit
+```
 
 ---
 
@@ -68,8 +77,8 @@ steps above, or run `./bandit`.
 |---------|----------------|
 | `/help` | Show all commands |
 | `/provider` | Show OpenAI / Ollama status |
-| `/provider openai` | Force OpenAI (default when available) |
-| `/provider ollama` | Force local Ollama |
+| `/provider ollama` | Force local Ollama (default) |
+| `/provider openai` | Force OpenAI-compatible API |
 | `/models` / `/model` | List / switch models |
 | `/persona` | hacker · philosopher · standard |
 | `/sessions` `/load` `/new` `/clear` | Session management |
@@ -92,15 +101,13 @@ bandit_cli/
   cloud.py                 # ollama.com HTML catalog scrape
   providers/
     base.py                # shared Provider interface
-    openai_provider.py     # DEFAULT backend
-    ollama.py              # FALLBACK backend
-    router.py              # "try OpenAI, else Ollama"
+    ollama.py              # DEFAULT — local Ollama
+    openai_provider.py     # optional OpenAI-compatible API
+    router.py              # "try Ollama, else OpenAI"
   data/bandit-soul.md      # full persona reference
 ```
 
-Every module has teaching-oriented comments at the top.
-
-Sessions are stored at `~/.bandit_ai/sessions/*.json` (fresh format — not compatible with the old Go CLI files).
+Sessions are stored at `~/.bandit_ai/sessions/*.json` (not compatible with the old Go CLI files).
 
 ---
 
@@ -109,12 +116,6 @@ Sessions are stored at `~/.bandit_ai/sessions/*.json` (fresh format — not comp
 ```bash
 uv run pytest
 ```
-
----
-
-## Why OpenAI is default even without a free tier today
-
-OpenAI's free chat API access is inconsistent. Bandit still **defaults to OpenAI** so that when free models/quota become available for your key, nothing else needs wiring. Until then, Ollama keeps you scavenging locally.
 
 ---
 

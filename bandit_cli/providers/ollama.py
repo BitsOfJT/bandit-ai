@@ -1,4 +1,4 @@
-"""Ollama provider — local FALLBACK when OpenAI isn't ready.
+"""Ollama provider — Bandit's DEFAULT local backend.
 
 Learning note
 -------------

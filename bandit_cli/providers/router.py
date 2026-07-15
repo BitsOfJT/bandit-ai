@@ -1,4 +1,4 @@
-"""Provider router: prefer OpenAI, fall back to Ollama.
+"""Provider router: prefer Ollama, optionally use OpenAI.
 
 Learning note
 -------------
@@ -8,7 +8,7 @@ This is the "strategy picker". The rest of the CLI asks the router for
 
 from __future__ import annotations
 
-from bandit_cli.config import FALLBACK_PROVIDER, RuntimeConfig
+from bandit_cli.config import DEFAULT_PROVIDER, FALLBACK_PROVIDER, RuntimeConfig
 from bandit_cli.providers.base import Provider
 from bandit_cli.providers.ollama import OllamaProvider
 from bandit_cli.providers.openai_provider import OpenAIProvider
@@ -20,7 +20,7 @@ class ProviderRouter:
     def __init__(self) -> None:
         self.openai = OpenAIProvider()
         self.ollama = OllamaProvider()
-        self.active_name = "openai"
+        self.active_name = DEFAULT_PROVIDER
         self.startup_notes: list[str] = []
 
     def get(self, name: str | None = None) -> Provider:
@@ -44,40 +44,40 @@ class ProviderRouter:
 
     def resolve_startup(self, config: RuntimeConfig) -> Provider:
         """
-        Default = OpenAI. If OpenAI isn't usable, fall back to Ollama.
+        Default = Ollama. If Ollama isn't usable, fall back to OpenAI.
 
         Always records human-readable notes for the banner.
         """
         self.startup_notes.clear()
 
-        openai_ok, openai_reason = self.openai.is_available()
-        if openai_ok:
-            self.active_name = "openai"
-            config.provider = "openai"
-            self.startup_notes.append(
-                "OpenAI API reachable — using it as the default provider."
-            )
-            return self.openai
-
-        self.startup_notes.append(
-            f"OpenAI not ready ({openai_reason}). Falling back to Ollama."
-        )
-
         ollama_ok, ollama_reason = self.ollama.is_available()
         if ollama_ok:
-            self.active_name = FALLBACK_PROVIDER
-            config.provider = FALLBACK_PROVIDER
+            self.active_name = DEFAULT_PROVIDER
+            config.provider = DEFAULT_PROVIDER
             host = getattr(self.ollama, "host", "local Ollama")
-            self.startup_notes.append(f"Ollama is up on {host}.")
+            self.startup_notes.append(f"Ollama is up on {host} — default provider.")
+            openai_ok, _ = self.openai.is_available()
+            if openai_ok:
+                self.startup_notes.append(
+                    "OpenAI is also ready — switch with /provider openai."
+                )
             return self.ollama
 
-        # Neither works — still default the *label* to openai so /provider
-        # and error hints point at the intended primary, but mark ollama
-        # as the attempted fallback for local tips.
-        self.active_name = "openai"
-        config.provider = "openai"
         self.startup_notes.append(
-            f"Ollama also unavailable ({ollama_reason}). "
-            "Set OPENAI_API_KEY or start Ollama, then retry."
+            f"Ollama not ready ({ollama_reason}). Trying OpenAI…"
         )
-        return self.openai
+
+        openai_ok, openai_reason = self.openai.is_available()
+        if openai_ok:
+            self.active_name = FALLBACK_PROVIDER
+            config.provider = FALLBACK_PROVIDER
+            self.startup_notes.append("OpenAI API reachable — using as fallback.")
+            return self.openai
+
+        self.active_name = DEFAULT_PROVIDER
+        config.provider = DEFAULT_PROVIDER
+        self.startup_notes.append(
+            f"OpenAI also unavailable ({openai_reason}). "
+            "Start Ollama or set OPENAI_API_KEY, then retry."
+        )
+        return self.ollama

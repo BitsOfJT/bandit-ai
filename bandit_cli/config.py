@@ -16,21 +16,19 @@ from dataclasses import dataclass
 # ---------------------------------------------------------------------------
 # Providers
 # ---------------------------------------------------------------------------
-# OpenAI-compatible is the DEFAULT. Ollama is the local FALLBACK when
-# OpenAI isn't reachable / free access isn't available yet.
+# Ollama is the DEFAULT (local-first). OpenAI is an optional FALLBACK / opt-in.
 
-DEFAULT_PROVIDER = "openai"
-FALLBACK_PROVIDER = "ollama"
+DEFAULT_PROVIDER = "ollama"
+FALLBACK_PROVIDER = "openai"
 
 # OpenAI (or any OpenAI-compatible host: OpenRouter, Groq, etc.)
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get(
     "BANDIT_OPENAI_API_KEY", ""
 )
-# Cheap default model — swap via /model once free models appear.
 DEFAULT_OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
-# Ollama (local)
+# Ollama (local) — default backend
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_OLLAMA_MODEL = os.environ.get("BANDIT_MODEL", "gemma4:e2b")
 

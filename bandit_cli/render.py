@@ -85,7 +85,7 @@ def print_help() -> None:
             "  [magenta]/sessions[/]          List saved sessions\n"
             "  [magenta]/load <idx|id>[/]     Resume a saved session\n"
             "  [magenta]/persona <name>[/]    Swap persona (hacker, philosopher, standard)\n"
-            "  [magenta]/provider [name][/]   Show/switch backend (openai default, ollama fallback)\n"
+            "  [magenta]/provider [name][/]   Show/switch backend (ollama default, openai optional)\n"
             "  [magenta]/models[/]            List models for the active provider\n"
             "  [magenta]/model <n|name>[/]    Switch the active model\n"
             "  [magenta]/cloud [name][/]      Browse Ollama cloud catalog (local pull helper)\n"

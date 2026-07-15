@@ -12,6 +12,10 @@ Python CLI only (web UI + Go CLI are shelved under `legacy-web/`).
 ## Commands
 
 ```bash
+# End-user install
+curl -fsSL https://raw.githubusercontent.com/BitsOfJT/bandit-ai/main/install.sh | sh
+# or: brew install BitsOfJT/bandit/bandit
+
 # Prefer a non-dot venv on macOS Desktop/Documents so editable .pth files
 # are not marked UF_HIDDEN (Python 3.12+ would skip them and break launch).
 UV_PROJECT_ENVIRONMENT=venv uv sync --extra dev
@@ -33,10 +37,10 @@ Package name on PyPI-style installs is `bandit-ai-cli` (the `bandit` name is tak
 
 ## Providers
 
-- **Default:** OpenAI-compatible (`OPENAI_API_KEY`, optional `OPENAI_BASE_URL`, `OPENAI_MODEL`)
-- **Fallback:** Ollama at `http://127.0.0.1:11434` (`OLLAMA_HOST`, `BANDIT_MODEL`)
+- **Default:** Ollama at `http://127.0.0.1:11434` (`OLLAMA_HOST`, `BANDIT_MODEL`)
+- **Optional:** OpenAI-compatible (`OPENAI_API_KEY`, optional `OPENAI_BASE_URL`, `OPENAI_MODEL`)
 
-Startup probes OpenAI first; if unavailable, switches to Ollama automatically.
+Startup probes Ollama first; if unavailable, tries OpenAI when a key is set.
 
 ## Session storage
 
@@ -62,4 +66,4 @@ uv run pytest
 - `tests/test_session.py` — save/load + permissions
 - `tests/test_personas.py` — preset loading
 - `tests/test_cloud.py` — HTML catalog parsers
-- `tests/test_router.py` — OpenAI-first / Ollama-fallback selection
+- `tests/test_router.py` — Ollama-first / OpenAI-fallback selection

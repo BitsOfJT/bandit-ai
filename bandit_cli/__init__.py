@@ -9,9 +9,9 @@ Package layout (start here when learning the code):
   render.py     Rich banner + streaming markdown output
   providers/    backends that talk to LLMs
     base.py           shared Protocol (interface)
-    openai_provider.py   DEFAULT — OpenAI-compatible API
-    ollama.py            FALLBACK — local Ollama
-    router.py            pick OpenAI first, fall back to Ollama
+    openai_provider.py   optional — OpenAI-compatible API
+    ollama.py            DEFAULT — local Ollama
+    router.py            pick Ollama first, fall back to OpenAI
 """
 
 __version__ = "0.4.0"

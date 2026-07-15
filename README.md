@@ -1,4 +1,4 @@
-# Bandit AI (CLI)
+# Bandit AI (CLI) · v0.4.0
 
 A local-first, cyberpunk raccoon chatbot for your terminal.
 

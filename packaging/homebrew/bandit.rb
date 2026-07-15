@@ -13,7 +13,7 @@ class Bandit < Formula
   desc "Local-first cyberpunk raccoon chatbot CLI"
   homepage "https://github.com/BitsOfJT/bandit-ai"
   url "https://github.com/BitsOfJT/bandit-ai/archive/refs/tags/v0.4.0.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "6665cf2847775a17dae41323c69fd5b560dba0b2b4a4802308f5d5587f06de3c"
   license "MIT"
   head "https://github.com/BitsOfJT/bandit-ai.git", branch: "main"
 

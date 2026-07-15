@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bandit AI — a local-first AI chatbot for your terminal</title>
+  <meta name="description" content="Bandit AI is a local-first CLI chatbot with a retro cyberpunk aesthetic. It runs entirely on your machine through Ollama — no cloud, no telemetry, no data leaving your hard drive." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:title" content="Bandit AI — a local-first AI chatbot for your terminal" />
+  <meta property="og:description" content="A retro cyberpunk CLI chatbot that runs entirely on your machine via Ollama. No cloud, no telemetry." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="img/hero.png" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__inner">
+      <h1 class="hero__title">Bandit<span class="hero__ai">AI</span></h1>
+      <p class="hero__tagline">A local-first AI chatbot for your terminal — retro cyberpunk attitude, zero cloud.</p>
+      <ul class="badges">
+        <li>Local-first</li>
+        <li>Runs on Ollama</li>
+        <li>No telemetry</li>
+      </ul>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="https://github.com/BitsOfJT/bandit-ai">Get it on GitHub</a>
+        <a class="btn btn--ghost" href="https://github.com/BitsOfJT/bandit-ai#readme">View source</a>
+      </div>
+      <figure class="hero__shot">
+        <img src="img/hero.png" alt="The Bandit AI CLI showing its ASCII-art banner and the Garbage Philosopher persona greeting." loading="eager" />
+      </figure>
+    </div>
+  </header>
+
+  <main>
+    <section class="section section--intro">
+      <h2>What it is</h2>
+      <p>
+        Bandit is a command-line AI chatbot that runs entirely on your own machine through
+        <a href="https://ollama.com">Ollama</a>. Chat history stays on your hard drive — no cloud,
+        no accounts, no telemetry. Switch personas, stream responses with ANSI-colored markdown,
+        and manage models without leaving the terminal.
+      </p>
+      <p class="note">
+        A browser-based web UI is <strong>in progress</strong>. The shipped, showcased interface today is the CLI.
+      </p>
+    </section>
+
+    <section class="section section--features">
+      <h2>Features</h2>
+      <ul class="features">
+        <li>
+          <h3>Three personas</h3>
+          <p>Cynical Cyber-Raccoon, Garbage Philosopher, and Smart Assistant — swap them mid-session.</p>
+        </li>
+        <li>
+          <h3>Real-time streaming</h3>
+          <p>Token-by-token responses rendered as ANSI-colored markdown in your terminal.</p>
+        </li>
+        <li>
+          <h3>Session management</h3>
+          <p>Save, load, rename, and switch between chat sessions. Everything stays local.</p>
+        </li>
+        <li>
+          <h3>Model management</h3>
+          <p>Pull, switch, and tune models — temperature, top_p, context window — from inside the app.</p>
+        </li>
+        <li>
+          <h3>Local & cloud models</h3>
+          <p>Run any local Ollama model, or browse and run Ollama cloud models when you want more horsepower.</p>
+        </li>
+        <li class="features__soon">
+          <h3>Web UI <span class="tag">coming soon</span></h3>
+          <p>A browser interface sharing the same cyberpunk aesthetic is in development.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section class="section section--gallery">
+      <h2>See it in action</h2>
+      <div class="gallery">
+        <figure>
+          <img src="img/hero.png" alt="Bandit AI ASCII-art banner with the Garbage Philosopher greeting." loading="lazy" />
+          <figcaption>The banner &amp; a persona greeting</figcaption>
+        </figure>
+        <figure>
+          <img src="img/personas.png" alt="The /persona command listing hacker, philosopher, and standard personas." loading="lazy" />
+          <figcaption>Three swappable personas</figcaption>
+        </figure>
+        <figure>
+          <img src="img/commands.png" alt="The /help command showing the full Bandit CLI command reference." loading="lazy" />
+          <figcaption>Full command reference</figcaption>
+        </figure>
+        <figure>
+          <img src="img/models.png" alt="The /model command listing installed Ollama models with sizes." loading="lazy" />
+          <figcaption>Switch &amp; tune models</figcaption>
+        </figure>
+        <figure>
+          <img src="img/cloud.png" alt="The /cloud command browsing the Ollama cloud model catalog." loading="lazy" />
+          <figcaption>Browse cloud models</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section section--try">
+      <h2>Try it yourself</h2>
+      <p>
+        Bandit runs <strong>locally only</strong> — models live on your machine, so there's nothing to demo in this
+        browser. Grab it from GitHub and run it on your own terminal. You'll need
+        <a href="https://ollama.com">Ollama</a> installed and at least one model pulled.
+      </p>
+
+      <div class="install">
+        <h3>curl <span class="muted">— macOS &amp; Linux</span></h3>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/BitsOfJT/bandit-ai/main/install.sh | sh
+bandit</code></pre>
+
+        <h3>Homebrew <span class="muted">— macOS &amp; Linux</span></h3>
+        <pre><code>brew install BitsOfJT/bandit/bandit
+bandit</code></pre>
+      </div>
+
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="https://github.com/BitsOfJT/bandit-ai">Get it on GitHub</a>
+        <a class="btn btn--ghost" href="https://github.com/BitsOfJT/bandit-ai#readme">Read the docs</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Built with a Go CLI &amp; Ollama. Web UI in development.</p>
+    <p>
+      By <a href="https://github.com/BitsOfJT">BitsOfJT</a> ·
+      <a href="https://github.com/BitsOfJT/bandit-ai">github.com/BitsOfJT/bandit-ai</a>
+    </p>
+  </footer>
+</body>
+</html>

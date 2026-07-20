@@ -67,3 +67,30 @@ uv run pytest
 - `tests/test_personas.py` — preset loading
 - `tests/test_cloud.py` — HTML catalog parsers
 - `tests/test_router.py` — Ollama-first / OpenAI-fallback selection
+
+## Cursor Cloud specific instructions
+
+On Linux the macOS `.venv`/`UF_HIDDEN` workaround does not apply — a plain
+`uv sync --extra dev` is enough, and `uv run bandit` / `uv run pytest` work
+directly. `uv` lives at `~/.local/bin` (already on PATH).
+
+There is no lint tooling configured (no ruff/flake8 in deps or config); "lint"
+is a no-op for this repo. Automated checks are `uv run pytest`.
+
+To actually chat (the CLI's core function) you need a reachable provider. The
+default is a local Ollama at `127.0.0.1:11434`; the OpenAI path needs
+`OPENAI_API_KEY`. Start Ollama with `ollama serve` (systemd is not running in
+this environment, so run it yourself, e.g. in a background/tmux session) and
+pull a small model such as `qwen2.5:0.5b`. Point Bandit at it with
+`BANDIT_MODEL=qwen2.5:0.5b` (default `gemma4:e2b` is not pulled).
+
+Non-obvious gotcha: Ollama auto-selects an AVX512 CPU runner that hits a
+general-protection fault (segfault, HTTP 500 "llama-server process has
+terminated") on this virtualized CPU. Fix once by removing the AVX512 ggml CPU
+variants so it falls back to the AVX2 (`haswell`) runner:
+`sudo mv /usr/local/lib/ollama/libggml-cpu-{cannonlake,cascadelake,cooperlake,icelake,sapphirerapids,skylakex,zen4}.so /usr/local/lib/ollama/_disabled_avx512/`
+then restart `ollama serve`. Without this, every chat turn crashes the model.
+
+The CLI is a `prompt_toolkit` REPL; when stdin is not a TTY it skips the
+interactive model picker and just uses `BANDIT_MODEL` / the default. Piping
+`printf '...\n/exit\n' | uv run bandit` is a handy way to script a chat turn.

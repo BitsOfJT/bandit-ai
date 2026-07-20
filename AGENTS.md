@@ -50,12 +50,39 @@ JSON files at `~/.bandit_ai/sessions/` with `0600` permissions. Fresh schema (`s
 
 `bandit_cli/data/bandit-soul.md` is packaged via `importlib.resources` and used as the default `hacker` system prompt. Keep the repo-root `bandit-soul.md` in sync when editing.
 
+## Tools (web search + fetch)
+
+Tool calling lives in `bandit_cli/tools/` (`base.py` = `Tool` + JSON schema,
+`registry.py` = registry/safe dispatch, `web.py` = `web_search` + `web_fetch`)
+and the loop is `bandit_cli/agent.py`. Providers gained `chat_once()` (non-
+streamed, returns `ChatTurn`/`ToolCall`) and `supports_tools(model)` alongside
+`chat_stream()`.
+
+- **On by default** (`BANDIT_TOOLS`). Toggle at runtime with `/settings tools
+  on|off`; `/tools` lists tool status.
+- **Capability-gated:** the agent loop only runs when the active model reports
+  the `tools` capability (Ollama `show`), else it falls back to plain streaming
+  and prints a one-time note. Most `qwen2.5` tags support tools; base `gemma`
+  tags often do not.
+- **Search backends:** `duckduckgo` (key-free default) and `brave`
+  (`BRAVE_API_KEY` from env). Switch with `/settings search <name>`.
+- The tool path is **non-streaming** (needs the full turn to detect tool
+  calls); the tool-free path keeps token streaming.
+- Parsing (`parse_duckduckgo`, `parse_brave`, `html_to_text`) is pure and
+  fixture-tested, mirroring `cloud.py`. Web-tool/agent tests are network-free
+  via monkeypatching.
+
+Design rationale and phasing live in `docs/tool-calling-plan.md`.
+
 ## Security
 
 - Model names validated against `^[a-zA-Z0-9_:./-]+$`
 - No hardcoded secrets — API keys come from the environment
 - Session files use `0600` permissions
 - No shell command execution, no raw HTML injection in the CLI path
+- Tools are HTTP-only: `web_fetch` allows only public `http(s)` hosts (SSRF
+  guard rejects loopback/private/link-local IPs) and downgrades HTML to text;
+  API keys (Brave) come from the environment, never persisted to sessions
 
 ## Tests
 

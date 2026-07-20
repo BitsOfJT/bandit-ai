@@ -85,7 +85,35 @@ bandit
 | `/pull <name>` | Download a model via Ollama |
 | `/cloud` | Browse Ollama cloud catalog |
 | `/temp` `/top_p` `/ctx` | Generation knobs |
+| `/tools` | List tools + their status |
+| `/settings` | Show/toggle tools + search backend |
 | `/exit` | Quit |
+
+---
+
+## Tools (web search + fetch)
+
+Bandit can call tools to use **live info**, not just model knowledge. Two
+built-in tools ship today:
+
+- `web_search` — search the web (DuckDuckGo by default, key-free)
+- `web_fetch` — fetch a public page and read its text
+
+Tools are **on by default**. They only run on models that advertise tool
+support (e.g. `qwen2.5`); on other models Bandit replies normally and says so.
+
+```text
+/tools                       # list tools + status
+/settings                    # show tools + search backend
+/settings tools on|off       # toggle the whole feature
+/settings search duckduckgo  # key-free default
+/settings search brave       # needs BRAVE_API_KEY in the environment
+```
+
+Relevant env vars: `BANDIT_TOOLS` (default on), `BANDIT_SEARCH_BACKEND`,
+`BRAVE_API_KEY`, `BANDIT_TOOL_MAX_ITERS`, `BANDIT_FETCH_MAX_BYTES`,
+`BANDIT_FETCH_TIMEOUT`. `web_fetch` is restricted to public `http(s)` hosts
+(SSRF guard) and downgrades HTML to plain text.
 
 ---
 
@@ -99,11 +127,16 @@ bandit_cli/
   personas.py              # system prompts
   render.py                # Rich banner + streaming markdown
   cloud.py                 # ollama.com HTML catalog scrape
+  agent.py                 # tool-calling loop (model ↔ tools)
   providers/
-    base.py                # shared Provider interface
+    base.py                # shared Provider interface (+ tool calls)
     ollama.py              # DEFAULT — local Ollama
     openai_provider.py     # optional OpenAI-compatible API
     router.py              # "try Ollama, else OpenAI"
+  tools/
+    base.py                # Tool primitive + JSON schema
+    registry.py            # tool registry + safe dispatch
+    web.py                 # web_search + web_fetch
   data/bandit-soul.md      # full persona reference
 ```
 

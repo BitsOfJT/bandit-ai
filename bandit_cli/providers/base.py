@@ -35,6 +35,23 @@ class ChatOptions:
     num_ctx: int = 2048
 
 
+@dataclass
+class ToolCall:
+    """A single tool invocation requested by the model."""
+
+    id: str
+    name: str
+    arguments: dict = field(default_factory=dict)
+
+
+@dataclass
+class ChatTurn:
+    """One non-streamed model turn: either final text, or tool requests."""
+
+    content: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+
+
 class Provider(Protocol):
     """Anything that can list models and stream a chat reply."""
 
@@ -54,6 +71,20 @@ class Provider(Protocol):
         options: ChatOptions,
     ) -> Iterator[str]:
         """Yield reply tokens as they arrive."""
+        ...
+
+    def chat_once(
+        self,
+        model: str,
+        messages: list[Message],
+        options: ChatOptions,
+        tools: list[dict],
+    ) -> ChatTurn:
+        """One non-streamed turn that may return tool calls (agent loop)."""
+        ...
+
+    def supports_tools(self, model: str) -> bool:
+        """True if this model can be given tool schemas."""
         ...
 
     def supports_pull(self) -> bool:

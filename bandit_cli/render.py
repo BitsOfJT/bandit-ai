@@ -70,7 +70,8 @@ def print_banner(model: str, provider: str) -> None:
         "  [bold]Commands:[/] [magenta]/exit[/], [magenta]/clear[/], [magenta]/new[/], "
         "[magenta]/sessions[/], [magenta]/load[/], [magenta]/persona[/], "
         "[magenta]/provider[/], [magenta]/models[/], [magenta]/model[/], "
-        "[magenta]/cloud[/], [magenta]/pull[/], [magenta]/help[/]"
+        "[magenta]/cloud[/], [magenta]/pull[/], [magenta]/tools[/], "
+        "[magenta]/settings[/], [magenta]/help[/]"
     )
     console.print()
 
@@ -93,11 +94,34 @@ def print_help() -> None:
             "  [magenta]/temp <val>[/]        Get/set temperature (0.0–2.0)\n"
             "  [magenta]/top_p <val>[/]       Get/set top_p (0.0–1.0)\n"
             "  [magenta]/ctx <val>[/]         Get/set Ollama context size\n"
+            "  [magenta]/tools[/]             List tools and their status\n"
+            "  [magenta]/settings[/]          Show/toggle tools + search backend\n"
             "  [magenta]/exit[/]              Quit\n",
             border_style="green",
             title="🦝 help",
         )
     )
+
+
+def print_tool_call(name: str, args: dict) -> None:
+    """Show that Bandit is invoking a tool."""
+    shown = ", ".join(f"{k}={v!r}" for k, v in (args or {}).items())
+    console.print(f"[dim]🔧 {name}([/][cyan]{shown}[/][dim])…[/]")
+
+
+def print_tool_result(name: str, result: str) -> None:
+    """Show a one-line summary of a tool's output."""
+    first = (result or "").strip().splitlines()[0] if result.strip() else ""
+    summary = first[:80] + ("…" if len(first) > 80 else "")
+    console.print(f"[dim]   ↳ {name}: {len(result)} chars — {summary}[/]")
+
+
+def render_reply(text: str) -> None:
+    """Render a complete (non-streamed) assistant reply as Markdown."""
+    console.print()
+    console.print(Text("Bandit:", style="bold green"), end=" ")
+    console.print(Markdown(text or ""))
+    console.print()
 
 
 def stream_markdown_reply(token_iter) -> str:

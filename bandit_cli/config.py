@@ -37,6 +37,44 @@ DEFAULT_TEMPERATURE = 0.7
 DEFAULT_TOP_P = 0.9
 DEFAULT_NUM_CTX = 2048  # mainly used by Ollama
 
+
+# ---------------------------------------------------------------------------
+# Tool calling
+# ---------------------------------------------------------------------------
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Tools are ON by default; toggle at runtime with /settings tools on|off.
+DEFAULT_TOOLS_ENABLED = _env_bool("BANDIT_TOOLS", True)
+
+# How many tool round-trips a single chat turn may make before giving up.
+try:
+    TOOL_MAX_ITERS = max(1, int(os.environ.get("BANDIT_TOOL_MAX_ITERS", "5")))
+except ValueError:
+    TOOL_MAX_ITERS = 5
+
+# Web search backend: "duckduckgo" (key-free) or "brave" (needs BRAVE_API_KEY).
+SEARCH_BACKENDS = ("duckduckgo", "brave")
+DEFAULT_SEARCH_BACKEND = os.environ.get("BANDIT_SEARCH_BACKEND", "duckduckgo").lower()
+if DEFAULT_SEARCH_BACKEND not in SEARCH_BACKENDS:
+    DEFAULT_SEARCH_BACKEND = "duckduckgo"
+
+BRAVE_API_KEY = os.environ.get("BRAVE_API_KEY", "")
+
+# web_fetch guards
+try:
+    FETCH_MAX_BYTES = max(1024, int(os.environ.get("BANDIT_FETCH_MAX_BYTES", "100000")))
+except ValueError:
+    FETCH_MAX_BYTES = 100_000
+try:
+    FETCH_TIMEOUT = float(os.environ.get("BANDIT_FETCH_TIMEOUT", "10"))
+except ValueError:
+    FETCH_TIMEOUT = 10.0
+
 # Model names must look like real model IDs (security: no weird injection)
 MODEL_NAME_RE = re.compile(r"^[a-zA-Z0-9_:./-]+$")
 
@@ -55,6 +93,8 @@ class RuntimeConfig:
     top_p: float = DEFAULT_TOP_P
     num_ctx: int = DEFAULT_NUM_CTX
     persona: str = "hacker"
+    tools_enabled: bool = DEFAULT_TOOLS_ENABLED
+    search_backend: str = DEFAULT_SEARCH_BACKEND
 
     @property
     def model(self) -> str:

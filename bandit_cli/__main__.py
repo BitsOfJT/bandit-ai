@@ -20,10 +20,12 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 
+from bandit_cli.agent import run_agent_turn
 from bandit_cli.cloud import print_cloud_catalog, print_cloud_tags
-from bandit_cli.config import MODEL_NAME_RE, RuntimeConfig
+from bandit_cli.config import MODEL_NAME_RE, SEARCH_BACKENDS, RuntimeConfig
 from bandit_cli.personas import PERSONALITY_PRESETS
 from bandit_cli.providers.base import ChatOptions, ModelInfo
+from bandit_cli.tools.registry import build_default_registry
 from bandit_cli.providers.ollama import OllamaProvider
 from bandit_cli.providers.router import ProviderRouter
 from bandit_cli.render import (
@@ -96,6 +98,36 @@ class BanditApp:
         self.router = ProviderRouter()
         self.session: Session | None = None
         self.custom_prompt = ""
+        self.tools = build_default_registry(self.config)
+        # Cache tool-capability probes per (provider, model) and remember which
+        # models we've already warned about, so we don't nag every turn.
+        self._tools_cap_cache: dict[tuple[str, str], bool] = {}
+        self._tool_warned: set[tuple[str, str]] = set()
+
+    def _tools_active(self) -> bool:
+        """True when tools are on AND the active model can use them.
+
+        Prints a one-time note per model when tools are on but unsupported.
+        """
+        if not self.config.tools_enabled:
+            return False
+        provider = self.router.get()
+        key = (provider.name, self.config.model)
+        if key not in self._tools_cap_cache:
+            try:
+                self._tools_cap_cache[key] = provider.supports_tools(self.config.model)
+            except Exception:
+                self._tools_cap_cache[key] = False
+        if self._tools_cap_cache[key]:
+            return True
+        if key not in self._tool_warned:
+            self._tool_warned.add(key)
+            console.print(
+                f"[dim]Tools are on, but [yellow]{self.config.model}[/] can't call "
+                "them — replying without tools. Pick a tools-capable model with "
+                "[magenta]/models[/].[/]"
+            )
+        return False
 
     # ------------------------------------------------------------------
     # Session helpers
@@ -649,6 +681,78 @@ class BanditApp:
             f"\n[green]Bandit:[/] Context size set to [yellow]{val}[/] tokens\n"
         )
 
+    def cmd_settings(self, arg: str) -> None:
+        parts = arg.split()
+        if not parts:
+            state = "[green]on[/]" if self.config.tools_enabled else "[red]off[/]"
+            provider = self.router.get()
+            try:
+                cap = provider.supports_tools(self.config.model)
+            except Exception:
+                cap = False
+            cap_txt = "[green]yes[/]" if cap else "[yellow]no[/]"
+            console.print("\n[bold cyan]Settings:[/]")
+            console.print(f"  [magenta]tools[/]   : {state}")
+            console.print(f"  [magenta]search[/]  : [yellow]{self.config.search_backend}[/]")
+            console.print(
+                f"  [dim]active model[/] [yellow]{self.config.model}[/] "
+                f"[dim]tool-capable:[/] {cap_txt}"
+            )
+            console.print(
+                "\nChange with [magenta]/settings tools on|off[/] or "
+                "[magenta]/settings search duckduckgo|brave[/].\n"
+            )
+            return
+
+        key = parts[0].lower()
+        val = parts[1].lower() if len(parts) > 1 else ""
+        if key == "tools":
+            if val in ("on", "off"):
+                self.config.tools_enabled = val == "on"
+                console.print(
+                    f"\n[green]Bandit:[/] Tools [yellow]{val}[/].\n"
+                )
+            else:
+                console.print("\n[red]Usage: /settings tools on|off[/]\n")
+        elif key == "search":
+            if val in SEARCH_BACKENDS:
+                self.config.search_backend = val
+                console.print(
+                    f"\n[green]Bandit:[/] Search backend set to [yellow]{val}[/].\n"
+                )
+            else:
+                console.print(
+                    f"\n[red]Unknown backend '{val}'. Options: "
+                    f"{', '.join(SEARCH_BACKENDS)}.[/]\n"
+                )
+        else:
+            console.print(
+                f"\n[red]Unknown setting '{key}'. Try tools or search.[/]\n"
+            )
+
+    def cmd_tools(self, _arg: str) -> None:
+        console.print("\n[bold cyan]Tools:[/]")
+        active = self._tools_active_quiet()
+        feature = "[green]on[/]" if self.config.tools_enabled else "[red]off[/]"
+        console.print(f"  feature: {feature}  active-for-model: "
+                      f"{'[green]yes[/]' if active else '[yellow]no[/]'}")
+        for tool in self.tools.all_tools():
+            mark = "[green]*[/]" if self.tools.is_enabled(tool.name) else " "
+            console.print(f"  {mark} [yellow]{tool.name}[/] — [dim]{tool.description}[/]")
+        console.print(
+            "\nToggle the feature with [magenta]/settings tools on|off[/].\n"
+        )
+
+    def _tools_active_quiet(self) -> bool:
+        """Like _tools_active but never prints (for status displays)."""
+        if not self.config.tools_enabled:
+            return False
+        provider = self.router.get()
+        try:
+            return provider.supports_tools(self.config.model)
+        except Exception:
+            return False
+
     def dispatch(self, line: str) -> bool:
         """
         Handle one input line.
@@ -681,6 +785,8 @@ class BanditApp:
                 "/temp": self.cmd_temp,
                 "/top_p": self.cmd_top_p,
                 "/ctx": self.cmd_ctx,
+                "/settings": self.cmd_settings,
+                "/tools": self.cmd_tools,
             }
             handler = handlers.get(command)
             if handler is None:
@@ -693,6 +799,7 @@ class BanditApp:
 
         # Normal chat turn
         assert self.session is not None
+        turn_start = len(self.session.messages)
         self.session.messages.append(Message(role="user", content=line))
         self.save_current()
 
@@ -703,15 +810,25 @@ class BanditApp:
             num_ctx=self.config.num_ctx,
         )
         try:
-            tokens = provider.chat_stream(
-                self.config.model, self.session.messages, options
-            )
-            reply = stream_markdown_reply(tokens)
+            if self._tools_active():
+                reply = run_agent_turn(
+                    provider,
+                    self.config.model,
+                    self.session.messages,
+                    options,
+                    self.tools,
+                )
+            else:
+                tokens = provider.chat_stream(
+                    self.config.model, self.session.messages, options
+                )
+                reply = stream_markdown_reply(tokens)
             self.session.messages.append(Message(role="assistant", content=reply))
             self.save_current()
         except Exception as exc:
-            # Roll back the user message so a failed turn isn't stuck in history.
-            self.session.messages.pop()
+            # Roll back the whole turn (user + any tool/assistant scratch
+            # messages) so a failed turn isn't stuck in history.
+            del self.session.messages[turn_start:]
             self.save_current()
             console.print(f"\n[bold red]Error:[/] {exc}")
             low = str(exc).lower()

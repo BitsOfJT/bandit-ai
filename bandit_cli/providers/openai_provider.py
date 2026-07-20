@@ -12,13 +12,44 @@ you have a key (or point OPENAI_BASE_URL at another compatible host).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 from openai import APIError, AuthenticationError, OpenAI, RateLimitError
 
 from bandit_cli.config import OPENAI_API_KEY, OPENAI_BASE_URL
-from bandit_cli.providers.base import ChatOptions, ModelInfo
+from bandit_cli.providers.base import ChatOptions, ChatTurn, ModelInfo, ToolCall
 from bandit_cli.session import Message
+
+
+def _to_openai_messages(messages: list[Message]) -> list[dict]:
+    """Serialize our Message list into OpenAI's chat wire format."""
+    out: list[dict] = []
+    for m in messages:
+        if m.role == "tool":
+            out.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": m.tool_call_id,
+                    "content": m.content,
+                }
+            )
+            continue
+        entry: dict = {"role": m.role, "content": m.content}
+        if m.tool_calls:
+            entry["tool_calls"] = [
+                {
+                    "id": tc.get("id", ""),
+                    "type": "function",
+                    "function": {
+                        "name": tc.get("name", ""),
+                        "arguments": json.dumps(tc.get("arguments") or {}),
+                    },
+                }
+                for tc in m.tool_calls
+            ]
+        out.append(entry)
+    return out
 
 
 class OpenAIProvider:
@@ -99,6 +130,43 @@ class OpenAIProvider:
             token = delta.content or ""
             if token:
                 yield token
+
+    def chat_once(
+        self,
+        model: str,
+        messages: list[Message],
+        options: ChatOptions,
+        tools: list[dict],
+    ) -> ChatTurn:
+        client = self._get_client()
+        response = client.chat.completions.create(
+            model=model,
+            messages=_to_openai_messages(messages),  # type: ignore[arg-type]
+            temperature=options.temperature,
+            top_p=options.top_p,
+            tools=tools or None,  # type: ignore[arg-type]
+            stream=False,
+        )
+        choice = response.choices[0] if response.choices else None
+        if choice is None:
+            return ChatTurn()
+        message = choice.message
+        content = message.content or ""
+        calls: list[ToolCall] = []
+        for tc in message.tool_calls or []:
+            fn = tc.function
+            try:
+                args = json.loads(fn.arguments) if fn.arguments else {}
+            except (ValueError, TypeError):
+                args = {}
+            if not isinstance(args, dict):
+                args = {}
+            calls.append(ToolCall(id=tc.id or "", name=fn.name or "", arguments=args))
+        return ChatTurn(content=content, tool_calls=calls)
+
+    def supports_tools(self, model: str) -> bool:
+        # OpenAI-compatible chat models generally support function calling.
+        return True
 
     def supports_pull(self) -> bool:
         return False

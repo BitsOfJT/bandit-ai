@@ -22,10 +22,27 @@ from pathlib import Path
 
 @dataclass
 class Message:
-    """One turn in a conversation."""
+    """One turn in a conversation.
 
-    role: str  # "system" | "user" | "assistant"
-    content: str
+    `tool_calls` is set on assistant turns that request tools; `tool_call_id`
+    ties a "tool" result back to the call that produced it. Both stay optional
+    so pre-tool session files keep loading unchanged.
+    """
+
+    role: str  # "system" | "user" | "assistant" | "tool"
+    content: str = ""
+    tool_calls: list[dict] | None = None
+    tool_call_id: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Message:
+        """Build a Message, ignoring unknown keys (forward-compatible)."""
+        return cls(
+            role=data["role"],
+            content=data.get("content", "") or "",
+            tool_calls=data.get("tool_calls"),
+            tool_call_id=data.get("tool_call_id", ""),
+        )
 
 
 @dataclass
@@ -50,7 +67,7 @@ class Session:
     @classmethod
     def from_dict(cls, data: dict) -> Session:
         """Rebuild a Session from JSON data."""
-        msgs = [Message(**m) for m in data.get("messages", [])]
+        msgs = [Message.from_dict(m) for m in data.get("messages", [])]
         return cls(
             id=data["id"],
             title=data.get("title", "New Scavenge Session"),

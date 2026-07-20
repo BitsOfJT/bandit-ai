@@ -8,14 +8,34 @@ Ollama runs models on your machine at http://127.0.0.1:11434. The official
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
 
 import httpx
 import ollama
 
 from bandit_cli.config import OLLAMA_HOST
-from bandit_cli.providers.base import ChatOptions, ModelInfo
+from bandit_cli.providers.base import ChatOptions, ChatTurn, ModelInfo, ToolCall
 from bandit_cli.session import Message
+
+
+def _to_ollama_messages(messages: list[Message]) -> list[dict]:
+    """Serialize our Message list into Ollama's chat wire format."""
+    out: list[dict] = []
+    for m in messages:
+        entry: dict = {"role": m.role, "content": m.content}
+        if m.tool_calls:
+            entry["tool_calls"] = [
+                {
+                    "function": {
+                        "name": tc.get("name", ""),
+                        "arguments": tc.get("arguments") or {},
+                    }
+                }
+                for tc in m.tool_calls
+            ]
+        out.append(entry)
+    return out
 
 
 class OllamaProvider:
@@ -103,6 +123,51 @@ class OllamaProvider:
             if token:
                 yield token
 
+    def chat_once(
+        self,
+        model: str,
+        messages: list[Message],
+        options: ChatOptions,
+        tools: list[dict],
+    ) -> ChatTurn:
+        response = self._client.chat(
+            model=model,
+            messages=_to_ollama_messages(messages),
+            tools=tools or None,
+            stream=False,
+            options={
+                "temperature": options.temperature,
+                "top_p": options.top_p,
+                "num_ctx": options.num_ctx,
+            },
+        )
+        message = getattr(response, "message", None)
+        if message is None and isinstance(response, dict):
+            message = response.get("message") or {}
+
+        content = _get(message, "content", "") or ""
+        raw_calls = _get(message, "tool_calls", None) or []
+        calls: list[ToolCall] = []
+        for rc in raw_calls:
+            fn = _get(rc, "function", {}) or {}
+            name = _get(fn, "name", "") or ""
+            args = _get(fn, "arguments", {}) or {}
+            if not isinstance(args, dict):
+                args = {}
+            if name:
+                calls.append(
+                    ToolCall(id=uuid.uuid4().hex[:8], name=name, arguments=args)
+                )
+        return ChatTurn(content=content, tool_calls=calls)
+
+    def supports_tools(self, model: str) -> bool:
+        try:
+            info = self._client.show(model)
+        except Exception:
+            return False
+        caps = _get(info, "capabilities", None) or []
+        return "tools" in list(caps)
+
     def supports_pull(self) -> bool:
         return True
 
@@ -121,6 +186,13 @@ class OllamaProvider:
         except Exception:
             # Warm-up is optional — ignore failures.
             pass
+
+
+def _get(obj, key, default=None):
+    """Read `key` from an object attribute or a dict, tolerating both shapes."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
 
 
 def _is_chat_capable(capabilities: list[str]) -> bool:

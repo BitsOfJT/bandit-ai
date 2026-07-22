@@ -104,23 +104,44 @@ def _assert_safe_url(url: str) -> None:
 # ---------------------------------------------------------------------------
 # web_fetch
 # ---------------------------------------------------------------------------
+_MAX_REDIRECTS = 5
+
+
+def _safe_get(url: str) -> httpx.Response:
+    """GET a URL, validating every redirect hop against the SSRF guard.
+
+    `follow_redirects=False` so a public host can't bounce us onto
+    loopback/private/metadata addresses after the initial check.
+    """
+    current = url
+    for _ in range(_MAX_REDIRECTS + 1):
+        _assert_safe_url(current)
+        resp = httpx.get(
+            current,
+            headers={"User-Agent": _USER_AGENT},
+            timeout=FETCH_TIMEOUT,
+            follow_redirects=False,
+        )
+        if resp.is_redirect:
+            location = resp.headers.get("location")
+            if not location:
+                raise SafetyError("redirect with no Location header")
+            current = str(httpx.URL(current).join(location))
+            continue
+        resp.raise_for_status()
+        return resp
+    raise SafetyError(f"too many redirects (>{_MAX_REDIRECTS})")
+
+
 def web_fetch(url: str) -> str:
     """Fetch a public web page and return its text (truncated)."""
     url = (url or "").strip()
     if not url:
         return "error: no url provided"
     try:
-        _assert_safe_url(url)
+        resp = _safe_get(url)
     except SafetyError as exc:
         return f"error: {exc}"
-    try:
-        resp = httpx.get(
-            url,
-            headers={"User-Agent": _USER_AGENT},
-            timeout=FETCH_TIMEOUT,
-            follow_redirects=True,
-        )
-        resp.raise_for_status()
     except Exception as exc:
         return f"error fetching {url}: {exc}"
 

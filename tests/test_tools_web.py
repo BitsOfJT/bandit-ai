@@ -8,10 +8,11 @@ from bandit_cli.tools import web
 
 
 class FakeResponse:
-    def __init__(self, text="", json_data=None, headers=None):
+    def __init__(self, text="", json_data=None, headers=None, *, is_redirect=False):
         self.text = text
         self._json = json_data or {}
         self.headers = headers or {}
+        self.is_redirect = is_redirect
 
     def raise_for_status(self):
         return None
@@ -45,6 +46,34 @@ def test_web_fetch_refuses_private_address():
 
 def test_web_fetch_empty_url():
     assert web.web_fetch("") == "error: no url provided"
+
+
+def test_web_fetch_rejects_redirect_to_private(monkeypatch):
+    """Public URL that 302s to loopback must not bypass the SSRF guard."""
+    checked: list[str] = []
+
+    def fake_assert(url: str) -> None:
+        checked.append(url)
+        if "127.0.0.1" in url or "localhost" in url:
+            raise web.SafetyError(f"refusing to fetch non-public address ({url})")
+
+    calls = {"n": 0}
+
+    def fake_get(url, **kwargs):
+        assert kwargs.get("follow_redirects") is False
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return FakeResponse(
+                is_redirect=True,
+                headers={"location": "http://127.0.0.1/secret"},
+            )
+        raise AssertionError("should not fetch the private hop")
+
+    monkeypatch.setattr(web, "_assert_safe_url", fake_assert)
+    monkeypatch.setattr(web.httpx, "get", fake_get)
+    out = web.web_fetch("https://evil.example/redirect")
+    assert out.startswith("error:")
+    assert any("127.0.0.1" in u for u in checked)
 
 
 # --- web_fetch (mocked) -----------------------------------------------------

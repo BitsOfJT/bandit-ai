@@ -64,7 +64,12 @@ def run_agent_turn(
             if render:
                 print_tool_result(call.name, result)
             messages.append(
-                Message(role="tool", content=result, tool_call_id=call.id)
+                Message(
+                    role="tool",
+                    content=result,
+                    tool_call_id=call.id,
+                    tool_name=call.name,
+                )
             )
 
     # Iteration cap reached — make one last plain request for a summary answer.

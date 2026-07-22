@@ -23,11 +23,19 @@ def test_message_with_tool_calls_round_trips():
 
 
 def test_tool_role_message_round_trips():
-    msg = Message(role="tool", content="result text", tool_call_id="abc")
+    msg = Message(
+        role="tool", content="result text", tool_call_id="abc", tool_name="web_search"
+    )
     restored = Message.from_dict(
-        {"role": "tool", "content": "result text", "tool_call_id": "abc"}
+        {
+            "role": "tool",
+            "content": "result text",
+            "tool_call_id": "abc",
+            "tool_name": "web_search",
+        }
     )
     assert restored == msg
+    assert restored.tool_name == "web_search"
 
 
 def test_legacy_message_without_tool_fields_loads():
@@ -59,7 +67,7 @@ def test_session_with_tool_messages_survives_save_load(tmp_path, monkeypatch):
                 role="assistant",
                 tool_calls=[{"id": "1", "name": "web_search", "arguments": {"query": "cats"}}],
             ),
-            Message(role="tool", content="1. Cats — ...", tool_call_id="1"),
+            Message(role="tool", content="1. Cats — ...", tool_call_id="1", tool_name="web_search"),
             Message(role="assistant", content="Here you go."),
         ],
     )
@@ -68,3 +76,4 @@ def test_session_with_tool_messages_survives_save_load(tmp_path, monkeypatch):
     assert [m.role for m in loaded.messages] == ["user", "assistant", "tool", "assistant"]
     assert loaded.messages[1].tool_calls[0]["name"] == "web_search"
     assert loaded.messages[2].tool_call_id == "1"
+    assert loaded.messages[2].tool_name == "web_search"

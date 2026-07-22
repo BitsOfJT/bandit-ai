@@ -51,15 +51,13 @@ def test_agent_runs_tool_then_answers():
     )
     assert reply == "Final answer."
     roles = [m.role for m in messages]
-    assert roles == ["user", "assistant", "tool", "assistant"] or roles == [
-        "user",
-        "assistant",
-        "tool",
-    ]
-    # The tool result should be recorded with the matching call id.
+    # run_agent_turn appends the tool-call assistant + tool result, but leaves
+    # the final assistant Message to the caller (mirrors chat_stream).
+    assert roles == ["user", "assistant", "tool"]
     tool_msg = next(m for m in messages if m.role == "tool")
     assert tool_msg.content == "echoed:hi"
     assert tool_msg.tool_call_id == "1"
+    assert tool_msg.tool_name == "echo"
     assert provider.calls == 2
 
 

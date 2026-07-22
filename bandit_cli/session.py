@@ -25,14 +25,16 @@ class Message:
     """One turn in a conversation.
 
     `tool_calls` is set on assistant turns that request tools; `tool_call_id`
-    ties a "tool" result back to the call that produced it. Both stay optional
-    so pre-tool session files keep loading unchanged.
+    ties a "tool" result back to the call that produced it (OpenAI-style).
+    `tool_name` labels the tool that produced a result (Ollama-style).
+    All stay optional so pre-tool session files keep loading unchanged.
     """
 
     role: str  # "system" | "user" | "assistant" | "tool"
     content: str = ""
     tool_calls: list[dict] | None = None
     tool_call_id: str = ""
+    tool_name: str = ""
 
     @classmethod
     def from_dict(cls, data: dict) -> Message:
@@ -42,6 +44,7 @@ class Message:
             content=data.get("content", "") or "",
             tool_calls=data.get("tool_calls"),
             tool_call_id=data.get("tool_call_id", ""),
+            tool_name=data.get("tool_name", ""),
         )
 
 

@@ -8,6 +8,7 @@ Ollama runs models on your machine at http://127.0.0.1:11434. The official
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Iterator
 
@@ -23,7 +24,14 @@ def _to_ollama_messages(messages: list[Message]) -> list[dict]:
     """Serialize our Message list into Ollama's chat wire format."""
     out: list[dict] = []
     for m in messages:
-        entry: dict = {"role": m.role, "content": m.content}
+        if m.role == "tool":
+            entry: dict = {"role": "tool", "content": m.content}
+            # Ollama labels tool results with tool_name (not tool_call_id).
+            if m.tool_name:
+                entry["tool_name"] = m.tool_name
+            out.append(entry)
+            continue
+        entry = {"role": m.role, "content": m.content}
         if m.tool_calls:
             entry["tool_calls"] = [
                 {
@@ -36,6 +44,19 @@ def _to_ollama_messages(messages: list[Message]) -> list[dict]:
             ]
         out.append(entry)
     return out
+
+
+def _parse_tool_arguments(raw) -> dict:
+    """Normalize tool arguments to a dict (Ollama may send a JSON string)."""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
 
 
 class OllamaProvider:
@@ -101,10 +122,9 @@ class OllamaProvider:
         messages: list[Message],
         options: ChatOptions,
     ) -> Iterator[str]:
-        payload = [{"role": m.role, "content": m.content} for m in messages]
         stream = self._client.chat(
             model=model,
-            messages=payload,
+            messages=_to_ollama_messages(messages),
             stream=True,
             options={
                 "temperature": options.temperature,
@@ -151,9 +171,7 @@ class OllamaProvider:
         for rc in raw_calls:
             fn = _get(rc, "function", {}) or {}
             name = _get(fn, "name", "") or ""
-            args = _get(fn, "arguments", {}) or {}
-            if not isinstance(args, dict):
-                args = {}
+            args = _parse_tool_arguments(_get(fn, "arguments", {}) or {})
             if name:
                 calls.append(
                     ToolCall(id=uuid.uuid4().hex[:8], name=name, arguments=args)

@@ -114,10 +114,9 @@ class OpenAIProvider:
         options: ChatOptions,
     ) -> Iterator[str]:
         client = self._get_client()
-        payload = [{"role": m.role, "content": m.content} for m in messages]
         stream = client.chat.completions.create(
             model=model,
-            messages=payload,  # type: ignore[arg-type]
+            messages=_to_openai_messages(messages),  # type: ignore[arg-type]
             temperature=options.temperature,
             top_p=options.top_p,
             stream=True,

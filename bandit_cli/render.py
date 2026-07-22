@@ -109,11 +109,13 @@ def print_tool_call(name: str, args: dict) -> None:
     console.print(f"[dim]🔧 {name}([/][cyan]{shown}[/][dim])…[/]")
 
 
-def print_tool_result(name: str, result: str) -> None:
+def print_tool_result(name: str, result: str | None) -> None:
     """Show a one-line summary of a tool's output."""
-    first = (result or "").strip().splitlines()[0] if result.strip() else ""
+    text = result or ""
+    stripped = text.strip()
+    first = stripped.splitlines()[0] if stripped else ""
     summary = first[:80] + ("…" if len(first) > 80 else "")
-    console.print(f"[dim]   ↳ {name}: {len(result)} chars — {summary}[/]")
+    console.print(f"[dim]   ↳ {name}: {len(text)} chars — {summary}[/]")
 
 
 def render_reply(text: str) -> None:

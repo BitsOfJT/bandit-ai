@@ -35,6 +35,23 @@ class ChatOptions:
     num_ctx: int = 2048
 
 
+@dataclass
+class ToolCall:
+    """One tool invocation the model asked for."""
+
+    id: str
+    name: str
+    arguments: dict
+
+
+@dataclass
+class ChatChunk:
+    """One piece of a streamed chat reply."""
+
+    content: str = ""  # token text; "" if none this chunk
+    tool_calls: list[ToolCall] = field(default_factory=list)  # only on the final chunk, if any
+
+
 class Provider(Protocol):
     """Anything that can list models and stream a chat reply."""
 
@@ -52,8 +69,9 @@ class Provider(Protocol):
         model: str,
         messages: list[Message],
         options: ChatOptions,
-    ) -> Iterator[str]:
-        """Yield reply tokens as they arrive."""
+        tools: list[dict] | None = None,
+    ) -> Iterator[ChatChunk]:
+        """Yield reply chunks as they arrive; tool_calls populated on the last one."""
         ...
 
     def supports_pull(self) -> bool:

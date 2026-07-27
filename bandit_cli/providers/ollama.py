@@ -14,7 +14,7 @@ import httpx
 import ollama
 
 from bandit_cli.config import OLLAMA_HOST
-from bandit_cli.providers.base import ChatOptions, ModelInfo
+from bandit_cli.providers.base import ChatChunk, ChatOptions, ModelInfo, ToolCall
 from bandit_cli.session import Message
 
 
@@ -80,28 +80,40 @@ class OllamaProvider:
         model: str,
         messages: list[Message],
         options: ChatOptions,
-    ) -> Iterator[str]:
-        payload = [{"role": m.role, "content": m.content} for m in messages]
-        stream = self._client.chat(
-            model=model,
-            messages=payload,
-            stream=True,
-            options={
+        tools: list[dict] | None = None,
+    ) -> Iterator[ChatChunk]:
+        payload = [_to_ollama_message(m) for m in messages]
+        kwargs = {
+            "model": model,
+            "messages": payload,
+            "stream": True,
+            "options": {
                 "temperature": options.temperature,
                 "top_p": options.top_p,
                 "num_ctx": options.num_ctx,
             },
-        )
+        }
+        if tools:
+            kwargs["tools"] = tools
+        stream = self._client.chat(**kwargs)
         for chunk in stream:
-            # chunk.message.content holds the next token(s)
+            # chunk.message.content holds the next token(s); tool_calls (if
+            # any) arrive fully formed on the same terminal chunk.
             message = getattr(chunk, "message", None)
             if message is None and isinstance(chunk, dict):
                 message = chunk.get("message") or {}
                 token = message.get("content") or ""
+                raw_tool_calls = message.get("tool_calls") or []
             else:
                 token = getattr(message, "content", "") or ""
-            if token:
-                yield token
+                raw_tool_calls = getattr(message, "tool_calls", None) or []
+
+            tool_calls = [
+                ToolCall(id=f"call_{i}", name=_tc_name(tc), arguments=_tc_arguments(tc))
+                for i, tc in enumerate(raw_tool_calls)
+            ]
+            if token or tool_calls:
+                yield ChatChunk(content=token, tool_calls=tool_calls)
 
     def supports_pull(self) -> bool:
         return True
@@ -122,6 +134,22 @@ class OllamaProvider:
             # Warm-up is optional — ignore failures.
             pass
 
+    def model_capabilities(self, model: str) -> list[str]:
+        """
+        Per-model capabilities (e.g. "tools") via /api/show.
+
+        list_models()'s /api/tags call doesn't include capabilities in this
+        ollama package version — only /api/show does — so this is a separate
+        lookup. Empty on any error (unknown model, cloud model 404, etc.), so
+        callers fail closed and don't send `tools` to a model we're unsure about.
+        """
+        try:
+            info = self._client.show(model)
+        except Exception:
+            return []
+        caps = getattr(info, "capabilities", None) or []
+        return list(caps)
+
 
 def _is_chat_capable(capabilities: list[str]) -> bool:
     """Embedding-only models shouldn't be offered as chat targets."""
@@ -129,3 +157,36 @@ def _is_chat_capable(capabilities: list[str]) -> bool:
         return True  # older Ollama omits the field — assume usable
     chat_ish = {"completion", "chat", "vision", "thinking", "tools"}
     return any(c in chat_ish for c in capabilities)
+
+
+def _to_ollama_message(m: Message) -> dict:
+    """Translate a session Message into the shape ollama.Client.chat() wants."""
+    payload: dict = {"role": m.role, "content": m.content}
+    if m.role == "assistant" and m.tool_calls:
+        payload["tool_calls"] = [
+            {"function": {"name": tc["name"], "arguments": tc["arguments"]}}
+            for tc in m.tool_calls
+        ]
+    if m.role == "tool":
+        # ponytail: only one tool exists (web_fetch), so hardcode its name
+        # rather than threading a tool-name field through Message for it.
+        payload["tool_name"] = "web_fetch"
+    return payload
+
+
+def _tc_name(tc) -> str:
+    fn = getattr(tc, "function", None)
+    if fn is None and isinstance(tc, dict):
+        fn = tc.get("function") or {}
+    if isinstance(fn, dict):
+        return fn.get("name", "") or ""
+    return getattr(fn, "name", "") or ""
+
+
+def _tc_arguments(tc) -> dict:
+    fn = getattr(tc, "function", None)
+    if fn is None and isinstance(tc, dict):
+        fn = tc.get("function") or {}
+    if isinstance(fn, dict):
+        return dict(fn.get("arguments") or {})
+    return dict(getattr(fn, "arguments", None) or {})

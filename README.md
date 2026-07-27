@@ -6,6 +6,8 @@ A local-first, cyberpunk raccoon chatbot for your terminal.
 **Optional:** OpenAI-compatible API (`/provider openai` when you have a key)
 
 > The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) (shelved, not deleted).
+>
+> _(buzz-pr smoke test — safe to ignore/remove)_
 
 ---
 

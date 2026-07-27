@@ -12,12 +12,13 @@ you have a key (or point OPENAI_BASE_URL at another compatible host).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 from openai import APIError, AuthenticationError, OpenAI, RateLimitError
 
 from bandit_cli.config import OPENAI_API_KEY, OPENAI_BASE_URL
-from bandit_cli.providers.base import ChatOptions, ModelInfo
+from bandit_cli.providers.base import ChatChunk, ChatOptions, ModelInfo, ToolCall
 from bandit_cli.session import Message
 
 
@@ -81,24 +82,68 @@ class OpenAIProvider:
         model: str,
         messages: list[Message],
         options: ChatOptions,
-    ) -> Iterator[str]:
+        tools: list[dict] | None = None,
+    ) -> Iterator[ChatChunk]:
         client = self._get_client()
-        payload = [{"role": m.role, "content": m.content} for m in messages]
-        stream = client.chat.completions.create(
-            model=model,
-            messages=payload,  # type: ignore[arg-type]
-            temperature=options.temperature,
-            top_p=options.top_p,
-            stream=True,
-        )
+        payload = [_to_openai_message(m) for m in messages]
+        kwargs = {
+            "model": model,
+            "messages": payload,
+            "temperature": options.temperature,
+            "top_p": options.top_p,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        stream = client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
+
+        # OpenAI streams tool-call *fragments* keyed by index — arguments
+        # arrive in pieces across chunks and must be concatenated, so we
+        # only know the full tool_calls once the stream ends.
+        accumulator: dict[int, dict] = {}
         for chunk in stream:
             choice = chunk.choices[0] if chunk.choices else None
             if choice is None:
                 continue
             delta = choice.delta
             token = delta.content or ""
+            for tc in delta.tool_calls or []:
+                entry = accumulator.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                if tc.id:
+                    entry["id"] = tc.id
+                if tc.function and tc.function.name:
+                    entry["name"] = tc.function.name
+                if tc.function and tc.function.arguments:
+                    entry["arguments"] += tc.function.arguments
             if token:
-                yield token
+                yield ChatChunk(content=token)
+
+        if accumulator:
+            tool_calls = []
+            for entry in accumulator.values():
+                try:
+                    args = json.loads(entry["arguments"]) if entry["arguments"] else {}
+                except json.JSONDecodeError:
+                    args = {}
+                tool_calls.append(ToolCall(id=entry["id"], name=entry["name"], arguments=args))
+            yield ChatChunk(tool_calls=tool_calls)
 
     def supports_pull(self) -> bool:
         return False
+
+
+def _to_openai_message(m: Message) -> dict:
+    """Translate a session Message into OpenAI's chat.completions shape."""
+    payload: dict = {"role": m.role, "content": m.content}
+    if m.role == "assistant" and m.tool_calls:
+        payload["tool_calls"] = [
+            {
+                "id": tc["id"],
+                "type": "function",
+                "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"])},
+            }
+            for tc in m.tool_calls
+        ]
+    if m.role == "tool":
+        payload["tool_call_id"] = m.tool_call_id
+    return payload

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from bandit_cli.session import Message, Session, list_sessions, load_session, save_session
+from bandit_cli.__main__ import BanditApp
+from bandit_cli.session import Message, Session, list_sessions, load_session, save_session, sessions_dir
 
 
 def test_save_and_load_roundtrip(tmp_path, monkeypatch):
@@ -51,3 +52,16 @@ def test_list_sessions_newest_first(tmp_path, monkeypatch):
 
     listed = list_sessions()
     assert [s.id for s in listed] == ["new", "old"]
+
+
+def test_save_current_persists_to_disk(tmp_path, monkeypatch):
+    """Regression: save_current() must actually write the session, not just mutate it in memory."""
+    monkeypatch.setattr("bandit_cli.session.Path.home", lambda: tmp_path)
+
+    app = BanditApp()
+    app.session = Session(id="chat-save-current", title="", messages=[Message(role="user", content="hi")])
+    app.save_current()
+
+    path = sessions_dir() / "chat-save-current.json"
+    assert path.exists()
+    assert load_session("chat-save-current").title == app.session.title

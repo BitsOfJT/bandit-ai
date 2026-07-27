@@ -24,8 +24,10 @@ from pathlib import Path
 class Message:
     """One turn in a conversation."""
 
-    role: str  # "system" | "user" | "assistant"
+    role: str  # "system" | "user" | "assistant" | "tool"
     content: str
+    tool_call_id: str = ""  # set on role="tool" messages
+    tool_calls: list[dict] = field(default_factory=list)  # set on assistant messages that requested tools
 
 
 @dataclass

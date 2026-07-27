@@ -15,6 +15,7 @@ editing keys, and a styled prompt.
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
@@ -23,7 +24,7 @@ from prompt_toolkit.history import InMemoryHistory
 from bandit_cli.cloud import print_cloud_catalog, print_cloud_tags
 from bandit_cli.config import MODEL_NAME_RE, RuntimeConfig
 from bandit_cli.personas import PERSONALITY_PRESETS
-from bandit_cli.providers.base import ChatOptions, ModelInfo
+from bandit_cli.providers.base import ChatChunk, ChatOptions, ModelInfo, Provider, ToolCall
 from bandit_cli.providers.ollama import OllamaProvider
 from bandit_cli.providers.router import ProviderRouter
 from bandit_cli.render import (
@@ -43,6 +44,11 @@ from bandit_cli.session import (
     save_session,
     title_from_messages,
 )
+from bandit_cli.tools import WEB_FETCH_TOOL, FetchError, fetch_url
+
+# Cap on how many times a chat turn will execute tools and hand the result
+# back to the model, so a model that keeps calling tools can't loop forever.
+MAX_TOOL_ROUND_TRIPS = 3
 
 
 def is_ollama_cloud_model(name: str) -> bool:
@@ -88,6 +94,18 @@ def wants_cloud_picker(raw: str) -> bool:
     return raw.strip().lower() in {"c", "cloud"}
 
 
+def _stream_content(chunks: Iterator[ChatChunk], collected_tool_calls: list[ToolCall]):
+    """
+    Adapt a ChatChunk stream down to a plain token stream for
+    stream_markdown_reply, stashing any tool_calls into `collected_tool_calls`.
+    """
+    for chunk in chunks:
+        if chunk.tool_calls:
+            collected_tool_calls.extend(chunk.tool_calls)
+        if chunk.content:
+            yield chunk.content
+
+
 class BanditApp:
     """Owns runtime state for one CLI process."""
 
@@ -129,6 +147,36 @@ class BanditApp:
             save_session(self.session)
         except OSError as exc:
             console.print(f"[bold red]WARNING:[/] Failed to save session: {exc}")
+
+    def _model_supports_tools(self, provider: Provider, model: str) -> bool:
+        """Whether `tools` should be offered to this provider/model this turn."""
+        if provider.name != "ollama":
+            # OpenAI's API doesn't expose per-model capability data here;
+            # its current chat models all support tool calling.
+            return True
+        # Ollama-specific: /api/tags (list_models) doesn't carry capabilities
+        # in this ollama package version, only /api/show does.
+        return "tools" in self.router.ollama.model_capabilities(model)
+
+    def _execute_tool(self, call: ToolCall) -> str:
+        """Run one requested tool call, returning text for a role="tool" message.
+
+        Tool arguments come from the model, not our own code, so any failure
+        here (bad argument shape, network error) must degrade to an "Error: ..."
+        result rather than propagate — the dispatch loop rolls back the whole
+        turn on an uncaught exception.
+        """
+        if call.name != "web_fetch":
+            return f"Error: unknown tool '{call.name}'"
+        url = call.arguments.get("url", "") if isinstance(call.arguments, dict) else ""
+        if not isinstance(url, str) or not url:
+            return "Error: web_fetch requires a 'url' argument"
+        try:
+            return fetch_url(url)
+        except FetchError as exc:
+            return f"Error: {exc}"
+        except Exception as exc:
+            return f"Error: web_fetch failed: {exc}"
 
     def start_new_session(self) -> None:
         if self.session is not None and any(
@@ -693,6 +741,7 @@ class BanditApp:
 
         # Normal chat turn
         assert self.session is not None
+        turn_start = len(self.session.messages)
         self.session.messages.append(Message(role="user", content=line))
         self.save_current()
 
@@ -703,15 +752,51 @@ class BanditApp:
             num_ctx=self.config.num_ctx,
         )
         try:
-            tokens = provider.chat_stream(
-                self.config.model, self.session.messages, options
-            )
-            reply = stream_markdown_reply(tokens)
-            self.session.messages.append(Message(role="assistant", content=reply))
-            self.save_current()
+            round_trips = 0
+            while True:
+                tools = (
+                    [WEB_FETCH_TOOL]
+                    if self._model_supports_tools(provider, self.config.model)
+                    else None
+                )
+                tool_calls: list[ToolCall] = []
+                chunks = provider.chat_stream(
+                    self.config.model, self.session.messages, options, tools=tools
+                )
+                reply = stream_markdown_reply(_stream_content(chunks, tool_calls))
+
+                if tool_calls and round_trips >= MAX_TOOL_ROUND_TRIPS:
+                    console.print(
+                        f"\n[bold yellow]Note:[/] hit the {MAX_TOOL_ROUND_TRIPS}-round-trip "
+                        "tool-call limit; ignoring further tool calls and returning the reply as-is."
+                    )
+                if not tool_calls or round_trips >= MAX_TOOL_ROUND_TRIPS:
+                    self.session.messages.append(Message(role="assistant", content=reply))
+                    self.save_current()
+                    break
+
+                self.session.messages.append(
+                    Message(
+                        role="assistant",
+                        content=reply,
+                        tool_calls=[
+                            {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                            for tc in tool_calls
+                        ],
+                    )
+                )
+                self.save_current()
+
+                for tc in tool_calls:
+                    result = self._execute_tool(tc)
+                    self.session.messages.append(
+                        Message(role="tool", content=result, tool_call_id=tc.id)
+                    )
+                self.save_current()
+                round_trips += 1
         except Exception as exc:
-            # Roll back the user message so a failed turn isn't stuck in history.
-            self.session.messages.pop()
+            # Roll back everything from this turn so a failed turn isn't stuck in history.
+            self.session.messages = self.session.messages[:turn_start]
             self.save_current()
             console.print(f"\n[bold red]Error:[/] {exc}")
             low = str(exc).lower()

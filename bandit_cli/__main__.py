@@ -415,8 +415,13 @@ class BanditApp:
         if not warm:
             return
         console.print(f"[dim]Warming up {chosen}…[/] ", end="")
-        self.router.ollama.preload(chosen)
-        console.print("[green]ready[/]\n")
+        if self.router.ollama.preload(chosen):
+            console.print("[green]ready[/]\n")
+        else:
+            console.print(
+                "[yellow]timed out — Ollama may still be loading it in the "
+                "background. First reply could be slow.[/]\n"
+            )
 
     def _ask_picker_input(self, prompt_label: str = "Model") -> str | None:
         """Read one picker line. None means EOF/Ctrl-C (keep/fallback)."""
@@ -578,8 +583,13 @@ class BanditApp:
         provider = self.router.get()
         if isinstance(provider, OllamaProvider):
             console.print(f"[dim]Warming up {target}…[/] ", end="")
-            provider.preload(target)
-            console.print("[green]ready[/]\n")
+            if provider.preload(target):
+                console.print("[green]ready[/]\n")
+            else:
+                console.print(
+                    "[yellow]timed out — Ollama may still be loading it in the "
+                    "background. First reply could be slow.[/]\n"
+                )
 
     def cmd_cloud(self, arg: str) -> None:
         if not arg:

@@ -17,6 +17,12 @@ from bandit_cli.config import OLLAMA_HOST
 from bandit_cli.providers.base import ChatChunk, ChatOptions, ModelInfo, ToolCall
 from bandit_cli.session import Message
 
+# ollama.Client defaults to timeout=None — no timeout at all. A stuck daemon
+# (cold model load, deadlocked worker) then hangs the whole CLI forever with
+# zero feedback: no error, no prompt back. Read is generous for slow local
+# generation/model loads; connect/write/pool are short since it's localhost.
+_CLIENT_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
+
 
 class OllamaProvider:
     """Chat via a local Ollama instance."""
@@ -27,7 +33,7 @@ class OllamaProvider:
         self.host = (host or OLLAMA_HOST).rstrip("/")
         # The ollama package reads OLLAMA_HOST from the environment; we also
         # pass host explicitly on Client for clarity.
-        self._client = ollama.Client(host=self.host)
+        self._client = ollama.Client(host=self.host, timeout=_CLIENT_TIMEOUT)
 
     def is_available(self) -> tuple[bool, str]:
         try:
@@ -122,17 +128,18 @@ class OllamaProvider:
         """Yield progress dicts from ollama.pull(stream=True)."""
         return self._client.pull(model, stream=True)
 
-    def preload(self, model: str) -> None:
-        """Best-effort warm-up so the first chat isn't cold."""
+    def preload(self, model: str) -> bool:
+        """Best-effort warm-up so the first chat isn't cold. Returns success."""
         try:
             httpx.post(
                 f"{self.host}/api/generate",
                 json={"model": model, "prompt": "", "keep_alive": "10m"},
                 timeout=60.0,
             )
+            return True
         except Exception:
-            # Warm-up is optional — ignore failures.
-            pass
+            # Warm-up is optional — caller decides how to report failure.
+            return False
 
     def model_capabilities(self, model: str) -> list[str]:
         """

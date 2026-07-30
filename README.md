@@ -1,11 +1,13 @@
 # Bandit AI (CLI) · v0.4.0
 
-A local-first, cyberpunk raccoon chatbot for your terminal.
+A local-first, cyberpunk raccoon chatbot for your terminal — chat with a model running on your own machine, no API key required.
 
 **Default backend:** [Ollama](https://ollama.com) on your machine  
 **Optional:** OpenAI-compatible API (`/provider openai` when you have a key)
 
-> The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) (shelved, not deleted).
+Pick a personality (`/persona`), keep chatting across restarts (sessions autosave), and let the model pull in a live web page when it needs one (see [Tools](#tools)).
+
+> The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) — shelved, not deleted. See [Legacy](#legacy).
 
 ---
 
@@ -89,6 +91,16 @@ bandit
 
 ---
 
+## Tools
+
+Bandit can call one tool: **`web_fetch(url)`**. Given an exact `http(s)://` URL, it fetches the page and hands the model back the text.
+
+What it's *not*: a search engine. There's no Google/Bing integration, so the model can't turn "what's the weather in Alabama" into a search — it can only fetch a URL it (or you) already knows. Give it a real URL (`https://wttr.in/Alabama`, a docs page, an API endpoint) and it'll read it; a request that needs a search first will fail or get a made-up answer.
+
+Fetches are sandboxed against SSRF: `http`/`https` only, and every hop (including redirects) is blocked from reaching loopback, private, link-local, and cloud-metadata addresses.
+
+---
+
 ## How the code is organized (learn here)
 
 ```
@@ -99,19 +111,22 @@ bandit_cli/
   personas.py              # system prompts
   render.py                # Rich banner + streaming markdown
   cloud.py                 # ollama.com HTML catalog scrape
+  tools.py                 # web_fetch tool + SSRF guards
   providers/
-    base.py                # shared Provider interface
+    base.py                # shared Provider interface (ChatChunk, tool_calls)
     ollama.py              # DEFAULT — local Ollama
     openai_provider.py     # optional OpenAI-compatible API
     router.py              # "try Ollama, else OpenAI"
   data/bandit-soul.md      # full persona reference
 ```
 
-Sessions are stored at `~/.bandit_ai/sessions/*.json` (not compatible with the old Go CLI files).
+Sessions autosave to `~/.bandit_ai/sessions/*.json` (`0600` permissions, one file per session). Fresh schema — not compatible with the old Go CLI's session files.
 
 ---
 
 ## Tests
+
+Needs dev deps first if you haven't run the dev install above (`uv sync --extra dev`), then:
 
 ```bash
 uv run pytest
@@ -121,4 +136,4 @@ uv run pytest
 
 ## Legacy
 
-See [`legacy-web/`](./legacy-web/) for the previous TypeScript/React UI and Go CLI.
+Bandit started as a TypeScript/React web app with a companion Go CLI (v0.3.0 and earlier). Both were shelved — not deleted — when the project moved to this Python CLI. They live untouched in [`legacy-web/`](./legacy-web/) if you need to reference the old behavior.

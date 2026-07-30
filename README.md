@@ -89,6 +89,16 @@ bandit
 
 ---
 
+## Tools
+
+Bandit can call one tool: **`web_fetch(url)`**. Given an exact `http(s)://` URL, it fetches the page and hands the model back the text.
+
+What it's *not*: a search engine. There's no Google/Bing integration, so the model can't turn "what's the weather in Alabama" into a search — it can only fetch a URL it (or you) already knows. Give it a real URL (`https://wttr.in/Alabama`, a docs page, an API endpoint) and it'll read it; a request that needs a search first will fail or get a made-up answer.
+
+Fetches are sandboxed against SSRF: `http`/`https` only, and every hop (including redirects) is blocked from reaching loopback, private, link-local, and cloud-metadata addresses.
+
+---
+
 ## How the code is organized (learn here)
 
 ```
@@ -99,8 +109,9 @@ bandit_cli/
   personas.py              # system prompts
   render.py                # Rich banner + streaming markdown
   cloud.py                 # ollama.com HTML catalog scrape
+  tools.py                 # web_fetch tool + SSRF guards
   providers/
-    base.py                # shared Provider interface
+    base.py                # shared Provider interface (ChatChunk, tool_calls)
     ollama.py              # DEFAULT — local Ollama
     openai_provider.py     # optional OpenAI-compatible API
     router.py              # "try Ollama, else OpenAI"
@@ -112,6 +123,8 @@ Sessions are stored at `~/.bandit_ai/sessions/*.json` (not compatible with the o
 ---
 
 ## Tests
+
+Needs dev deps first if you haven't run the dev install above (`uv sync --extra dev`), then:
 
 ```bash
 uv run pytest

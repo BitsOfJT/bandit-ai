@@ -1,11 +1,13 @@
 # Bandit AI (CLI) · v0.4.0
 
-A local-first, cyberpunk raccoon chatbot for your terminal.
+A local-first, cyberpunk raccoon chatbot for your terminal — chat with a model running on your own machine, no API key required.
 
 **Default backend:** [Ollama](https://ollama.com) on your machine  
 **Optional:** OpenAI-compatible API (`/provider openai` when you have a key)
 
-> The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) (shelved, not deleted).
+Pick a personality (`/persona`), keep chatting across restarts (sessions autosave), and let the model pull in a live web page when it needs one (see [Tools](#tools)).
+
+> The old React web app + Go CLI live in [`legacy-web/`](./legacy-web/) — shelved, not deleted. See [Legacy](#legacy).
 
 ---
 
@@ -118,7 +120,7 @@ bandit_cli/
   data/bandit-soul.md      # full persona reference
 ```
 
-Sessions are stored at `~/.bandit_ai/sessions/*.json` (not compatible with the old Go CLI files).
+Sessions autosave to `~/.bandit_ai/sessions/*.json` (`0600` permissions, one file per session). Fresh schema — not compatible with the old Go CLI's session files.
 
 ---
 
@@ -134,4 +136,4 @@ uv run pytest
 
 ## Legacy
 
-See [`legacy-web/`](./legacy-web/) for the previous TypeScript/React UI and Go CLI.
+Bandit started as a TypeScript/React web app with a companion Go CLI (v0.3.0 and earlier). Both were shelved — not deleted — when the project moved to this Python CLI. They live untouched in [`legacy-web/`](./legacy-web/) if you need to reference the old behavior.

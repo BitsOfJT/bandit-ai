@@ -23,7 +23,6 @@ class ModelInfo:
     name: str
     size_bytes: int = 0
     parameter_size: str = ""
-    capabilities: list[str] = field(default_factory=list)
     # True if this looks usable for chat (not embedding-only).
     chat_capable: bool = True
 

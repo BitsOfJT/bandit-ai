@@ -74,7 +74,6 @@ class OllamaProvider:
                     name=str(name),
                     size_bytes=int(size or 0),
                     parameter_size=str(param or ""),
-                    capabilities=list(caps) if caps else [],
                     chat_capable=chat_capable,
                 )
             )

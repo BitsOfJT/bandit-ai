@@ -216,11 +216,8 @@ class BanditApp:
         # Prefer the session's provider only if that backend is reachable;
         # otherwise keep whatever resolve_startup already chose.
         wanted = s.provider or self.router.active_name
-        ok, _ = self.router.set_active(wanted)
-        if ok:
-            self.config.provider = self.router.active_name
-        else:
-            self.config.provider = self.router.active_name
+        self.router.set_active(wanted)
+        self.config.provider = self.router.active_name
 
         # Recover persona by matching the stored system prompt.
         self.config.persona = "custom"
@@ -406,6 +403,16 @@ class BanditApp:
             "[magenta]/model <name>[/].\n"
         )
 
+    def _warm_up(self, model: str) -> None:
+        console.print(f"[dim]Warming up {model}…[/] ", end="")
+        if self.router.ollama.preload(model):
+            console.print("[green]ready[/]\n")
+        else:
+            console.print(
+                "[yellow]timed out — Ollama may still be loading it in the "
+                "background. First reply could be slow.[/]\n"
+            )
+
     def _apply_selected_model(self, chosen: str, *, warm: bool = True) -> None:
         self.config.ollama_model = chosen
         self.save_current()
@@ -414,21 +421,14 @@ class BanditApp:
         )
         if not warm:
             return
-        console.print(f"[dim]Warming up {chosen}…[/] ", end="")
-        if self.router.ollama.preload(chosen):
-            console.print("[green]ready[/]\n")
-        else:
-            console.print(
-                "[yellow]timed out — Ollama may still be loading it in the "
-                "background. First reply could be slow.[/]\n"
-            )
+        self._warm_up(chosen)
 
-    def _ask_picker_input(self, prompt_label: str = "Model") -> str | None:
+    def _ask_picker_input(self) -> str | None:
         """Read one picker line. None means EOF/Ctrl-C (keep/fallback)."""
         try:
             picker = PromptSession[str]()
             return picker.prompt(
-                HTML(f"<ansicyan><b>{prompt_label}&gt;</b></ansicyan> ")
+                HTML("<ansicyan><b>Model&gt;</b></ansicyan> ")
             )
         except (EOFError, KeyboardInterrupt):
             return None
@@ -582,14 +582,7 @@ class BanditApp:
         )
         provider = self.router.get()
         if isinstance(provider, OllamaProvider):
-            console.print(f"[dim]Warming up {target}…[/] ", end="")
-            if provider.preload(target):
-                console.print("[green]ready[/]\n")
-            else:
-                console.print(
-                    "[yellow]timed out — Ollama may still be loading it in the "
-                    "background. First reply could be slow.[/]\n"
-                )
+            self._warm_up(target)
 
     def cmd_cloud(self, arg: str) -> None:
         if not arg:

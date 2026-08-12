@@ -39,3 +39,8 @@ build/
 .ruff_cache/
 .mypy_cache/
 .venv
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
